@@ -691,18 +691,18 @@
                 </div>
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                     <p class="text-xs font-semibold text-slate-400">필수 배정 (기본)</p>
-                    <h3 class="text-2xl font-extrabold text-emerald-600 mt-1" id="totalSessionCount">212</h3>
-                    <p class="text-[11px] text-slate-500 mt-1">1~2학년 · 3~6학년 합계 (6학년 14차시)</p>
+                    <h3 class="text-2xl font-extrabold text-emerald-600 mt-1" id="totalSessionCount">211</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">1~2학년 · 3~6학년 합계 (5·6학년 13차시)</p>
                 </div>
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                     <p class="text-xs font-semibold text-slate-400">운영 한도 (강사1)</p>
-                    <h3 class="text-2xl font-extrabold text-amber-600 mt-1" id="capacityHoursDisplay">248</h3>
-                    <p class="text-[11px] text-slate-500 mt-1" id="capacityHoursNote">강사1 학기 최대 · 필수 212 + 추가 36</p>
+                    <h3 class="text-2xl font-extrabold text-amber-600 mt-1" id="capacityHoursDisplay">247</h3>
+                    <p class="text-[11px] text-slate-500 mt-1" id="capacityHoursNote">강사1 학기 최대 · 필수 211 + 추가 36</p>
                 </div>
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                     <p class="text-xs font-semibold text-slate-400">배정 진행 (운영한도)</p>
                     <h3 class="text-2xl font-extrabold text-slate-800 mt-1" id="scheduleProgress">0%</h3>
-                    <p class="text-[11px] text-slate-500 mt-1" id="scheduleProgressDetail">0 / 248</p>
+                    <p class="text-[11px] text-slate-500 mt-1" id="scheduleProgressDetail">0 / 247</p>
                 </div>
             </div>
 
@@ -985,8 +985,8 @@
                             · <strong>3~6학년:</strong> <strong>1~4교시</strong> (교과전담 시간 제외)<br>
                             · <strong>3·6학년:</strong> <strong>10월 16일(중순) 이후</strong>부터 1~12주차 연속<br>
                             · <strong>3학년 (12/14~12/31):</strong> 주당 최대 <strong>2회</strong> 편성 가능 (총 12차시)<br>
-                            · <strong>6학년 (12/14~12/31):</strong> 주당 최대 <strong>2회</strong> 편성 가능 (총 14차시)<br>
-                            · <strong>4·5학년:</strong> 1~12주차 (주당 1회)<br>
+                            · <strong>5·6학년 (12/14~12/31):</strong> 주당 최대 <strong>2회</strong> 편성 가능 (총 13차시)<br>
+                            · <strong>4학년:</strong> 1~12주차 (주당 1회)<br>
                             · 순서에 맞춰 주차별 배정, 미배정 시 다음 주 우선 재시도
                         </p>
                     </div>
@@ -1327,7 +1327,7 @@
 
         let instructor1Schedules = JSON.parse(JSON.stringify(schoolCalendarBase));
 
-        const GRADE6_DEFAULT_SESSIONS = 14;
+        const GRADE56_DEFAULT_SESSIONS = 13;
 
         const SCHOOL_CLASSES = [
             { id: '1-1', grade: 1, classNum: 1, sessions: 6, gradeGroup: '1-2', label: '1학년 1반' },
@@ -1343,17 +1343,17 @@
             { id: '4-2', grade: 4, classNum: 2, sessions: 12, gradeGroup: '3-4', label: '4학년 2반' },
             { id: '4-3', grade: 4, classNum: 3, sessions: 12, gradeGroup: '3-4', label: '4학년 3반' },
             { id: '4-4', grade: 4, classNum: 4, sessions: 12, gradeGroup: '3-4', label: '4학년 4반' },
-            { id: '5-1', grade: 5, classNum: 1, sessions: 12, gradeGroup: '5-6', label: '5학년 1반' },
-            { id: '5-2', grade: 5, classNum: 2, sessions: 12, gradeGroup: '5-6', label: '5학년 2반' },
-            { id: '5-3', grade: 5, classNum: 3, sessions: 12, gradeGroup: '5-6', label: '5학년 3반' },
-            { id: '6-1', grade: 6, classNum: 1, sessions: GRADE6_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '6학년 1반' },
-            { id: '6-2', grade: 6, classNum: 2, sessions: GRADE6_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '6학년 2반' },
-            { id: '6-3', grade: 6, classNum: 3, sessions: GRADE6_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '6학년 3반' },
-            { id: '6-4', grade: 6, classNum: 4, sessions: GRADE6_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '6학년 4반' }
+            { id: '5-1', grade: 5, classNum: 1, sessions: GRADE56_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '5학년 1반' },
+            { id: '5-2', grade: 5, classNum: 2, sessions: GRADE56_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '5학년 2반' },
+            { id: '5-3', grade: 5, classNum: 3, sessions: GRADE56_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '5학년 3반' },
+            { id: '6-1', grade: 6, classNum: 1, sessions: GRADE56_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '6학년 1반' },
+            { id: '6-2', grade: 6, classNum: 2, sessions: GRADE56_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '6학년 2반' },
+            { id: '6-3', grade: 6, classNum: 3, sessions: GRADE56_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '6학년 3반' },
+            { id: '6-4', grade: 6, classNum: 4, sessions: GRADE56_DEFAULT_SESSIONS, gradeGroup: '5-6', label: '6학년 4반' }
         ];
 
         const TOTAL_SESSIONS = SCHOOL_CLASSES.reduce((sum, c) => sum + c.sessions, 0);
-        const REQUIRED_TOTAL_HOURS = TOTAL_SESSIONS; // 1~2학년 6×6 + 3~5학년 12×7 + 6학년 14×4 = 212
+        const REQUIRED_TOTAL_HOURS = TOTAL_SESSIONS; // 1~2학년 6×6 + 3~4학년 12×7 + 5~6학년 13×7 = 211
         const INSTRUCTOR1_CAPACITY_EXTRA = 36;
         const TOTAL_CAPACITY_HOURS = REQUIRED_TOTAL_HOURS + INSTRUCTOR1_CAPACITY_EXTRA; // 강사1 학기 운영 한도 (필수 + 추가 시수 여유)
 
@@ -1432,7 +1432,7 @@
                 const slot = plannedTimetable[item.dateKey]?.[item.period];
                 if (!slot) return;
                 const nextSubject = (!slot.subject || isAutoSessionSubject(slot.subject))
-                    ? formatSessionTag(expected, cls.sessions)
+                    ? formatSessionTag(expected, getClassSessionLimit(classId))
                     : slot.subject;
                 if (slot.sessionNum !== expected || slot.subject !== nextSubject) {
                     slot.sessionNum = expected;
@@ -1457,8 +1457,9 @@
             if (!cls) return { issues: [] };
             const list = getClassAssignmentList(classId);
             const issues = [];
-            if (list.length > cls.sessions) {
-                issues.push(`${list.length}회 배정 (${cls.sessions}회 한도 초과)`);
+            const limit = getClassSessionLimit(classId);
+            if (list.length > limit) {
+                issues.push(`${list.length}회 배정 (${limit}회 한도 초과)`);
             }
             const seen = new Set();
             list.forEach((item, idx) => {
@@ -1497,7 +1498,7 @@
             const cls = getClassById(classId);
             const rows = getClassSessionRows(classId);
             const done = rows.length;
-            const total = cls?.sessions || done;
+            const total = cls ? cls.sessions : done;
             const labels = rows.map(r => `${r.sessionNum}회차 ${r.slotLabel}`);
             const preview = rows.length
                 ? `${rows[0].sessionNum}회차 ${rows[0].slotLabel}${rows.length > 1 ? ` ~ ${rows[rows.length - 1].sessionNum}회차 ${rows[rows.length - 1].slotLabel}` : ''}`
@@ -1509,8 +1510,8 @@
                 preview,
                 done,
                 total,
-                isComplete: done === total,
-                isOver: done > total
+                isComplete: done >= total,
+                isOver: done > getClassSessionLimit(classId)
             };
         }
 
@@ -1538,6 +1539,13 @@
 
         function getClassById(classId) {
             return SCHOOL_CLASSES.find(c => c.id === classId);
+        }
+
+        /** 기본 목표 차시. 이미 편성된 회차가 더 많으면 그 수까지 유지 (공유 데이터 보존) */
+        function getClassSessionLimit(classId) {
+            const cls = getClassById(classId);
+            if (!cls) return 0;
+            return Math.max(cls.sessions, countClassSessions(classId));
         }
 
         const GRADE_BAND_LABELS = {
@@ -3675,8 +3683,8 @@
                 const items = group.map(cls => {
                     const done = countClassSessions(cls.id);
                     const pct = Math.round((done / cls.sessions) * 100);
-                    const isComplete = done === cls.sessions;
-                    const isOver = done > cls.sessions;
+                    const isComplete = done >= cls.sessions;
+                    const isOver = done > getClassSessionLimit(cls.id);
                     const isActive = selectedPlannerClassId === cls.id;
                     const stateClass = isOver ? 'is-over' : isComplete ? 'is-complete' : '';
                     const searchKey = `${cls.label} ${cls.id} ${cls.grade}학년`;
@@ -3798,8 +3806,8 @@
             const assignments = getClassAssignmentList(classId);
             const done = assignments.length;
             const pct = Math.round((done / cls.sessions) * 100);
-            const isComplete = done === cls.sessions;
-            const isOver = done > cls.sessions;
+            const isComplete = done >= cls.sessions;
+            const isOver = done > getClassSessionLimit(classId);
             const pref = classPreferredSlot[classId];
             const defaultDate = plannerHighlightSlot?.dateKey
                 || document.getElementById('plannerAddDateInput')?.value
@@ -4185,8 +4193,8 @@
             container.innerHTML = SCHOOL_CLASSES.map(cls => {
                 const reqDone = countClassSessions(cls.id);
                 const reqPct = Math.round((reqDone / cls.sessions) * 100);
-                const isComplete = reqDone === cls.sessions;
-                const isOver = reqDone > cls.sessions;
+                const isComplete = reqDone >= cls.sessions;
+                const isOver = reqDone > getClassSessionLimit(cls.id);
                 const sum = getClassPlacementSummaryLine(cls.id);
                 const preview = sum.done
                     ? (sum.rows.length > 1
@@ -4524,7 +4532,7 @@
             if (!isInstructorPeriodAvailable(dateKey, periodNum)) {
                 hints.push('강사1 해당 교시 출강 불가');
             }
-            if (cls && countClassSessions(classId) >= cls.sessions) {
+            if (cls && countClassSessions(classId) >= getClassSessionLimit(classId)) {
                 const existing = plannedTimetable[dateKey]?.[periodNum];
                 if (!(existing?.classId === classId)) {
                     hints.push(`${cls.label}: 목표 ${cls.sessions}회 초과 추가 배정`);
@@ -4603,7 +4611,7 @@
                     if (cls.grade < 3 || cls.grade > 6) {
                         return { ok: false, message: '5~6교시는 3~6학년 미완 학급만 배치 가능합니다.' };
                     }
-                    if (countClassSessions(classId) >= cls.sessions) {
+                    if (countClassSessions(classId) >= getClassSessionLimit(classId)) {
                         return { ok: false, message: `${cls.label}: 배정 완료 — 5~6교시 배치 불가` };
                     }
                     if (period === 6 && appliesPeriod6SemesterCap(cls, dow, period) && countAuxiliaryPeriod6Assignments() >= MAX_PERIOD6_PLACEMENTS) {
@@ -4677,7 +4685,7 @@
             }
 
             const currentSessions = countClassSessions(classId);
-            if (!isReplacingSamePeriod && currentSessions >= cls.sessions) {
+            if (!isReplacingSamePeriod && currentSessions >= getClassSessionLimit(classId)) {
                 return { ok: false, message: `${cls.label}: 배정 한도 (초과 불가)` };
             }
 
@@ -4689,7 +4697,7 @@
             }
 
             const sessionNum = options.forceSessionNum || (currentSessions + 1);
-            if (!isReplacingSamePeriod && sessionNum > cls.sessions) {
+            if (!isReplacingSamePeriod && sessionNum > getClassSessionLimit(classId)) {
                 return { ok: false, message: `${cls.label} 배정 한도 초과` };
             }
 
@@ -5592,7 +5600,7 @@
                 }).forEach(p => {
                     if (plannedTimetable[dateKey]?.[p]) return;
                     const canFill = SCHOOL_CLASSES.some(cls => {
-                        if (countClassSessions(cls.id) >= cls.sessions) return false;
+                        if (countClassSessions(cls.id) >= getClassSessionLimit(cls.id)) return false;
                         if (isClassWeeklyVisitLimitReached(cls.id, getWeekKey(dateKey))) return false;
                         if (p === 6 && !getClassValidPeriods(cls, dow).includes(6)) return false;
                         return tryAssignSlot(dateKey, p, cls.id, '', { manualMode: true }).ok
@@ -5630,7 +5638,8 @@
 
             SCHOOL_CLASSES.forEach(cls => {
                 const done = countClassSessions(cls.id);
-                if (done > cls.sessions) {
+                const limit = getClassSessionLimit(cls.id);
+                if (done > limit) {
                     warnings.push(`${cls.label}: ${formatProgressCount(done, cls.sessions)} (목표 초과 · 자율 배정)`);
                 } else if (done < cls.sessions) {
                     warnings.push(`${cls.label}: ${formatProgressCount(done, cls.sessions)} 미완`);
@@ -5754,7 +5763,7 @@
             const periodNum = parseInt(period, 10);
             const existing = plannedTimetable[dateKey]?.[periodNum];
             if (existing?.classId === classId) return false;
-            if (countClassSessions(classId) >= cls.sessions) return false;
+            if (countClassSessions(classId) >= getClassSessionLimit(classId)) return false;
 
             if (existing?.classId) removeAssignmentAt(dateKey, periodNum);
 

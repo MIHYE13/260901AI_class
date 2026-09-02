@@ -759,7 +759,7 @@
                         </div>
                         <div class="p-3 rounded-lg bg-white border border-indigo-100">
                             <div class="font-bold text-indigo-800 mb-1.5 flex items-center gap-2"><span class="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center">3</span> 저장·백업</div>
-                            <p class="text-slate-600 leading-relaxed">변경 후 <strong>「공유 저장」</strong>을 누르면 Firebase에 저장되어 모든 사용자에게 동일하게 표시됩니다. JSON <strong>내보내기/불러오기</strong>로 백업할 수 있습니다.</p>
+                            <p class="text-slate-600 leading-relaxed">변경 후 <strong>자동으로 Firebase에 저장</strong>되어 모든 사용자에게 동일하게 표시됩니다. 「공유 저장」으로 즉시 저장할 수도 있습니다. JSON <strong>내보내기/불러오기</strong>로 백업할 수 있습니다.</p>
                         </div>
                     </div>
                 </details>
@@ -2919,7 +2919,11 @@
         }
 
         const SCHEDULE_STORAGE_KEY = 'instructor1_schedule_v1';
+        const AUTO_SAVE_DELAY_MS = 400;
         let autoSaveTimer = null;
+        let autoSavePending = false;
+        let autoSaveInProgress = false;
+        let autoSaveRetryTimer = null;
 
         // In-memory timetable store: { "2026-10-19": { 5: { classId, grade, subject, sessionNum } } }
         let plannedTimetable = {};
@@ -2947,15 +2951,21 @@
             const btn = document.getElementById('saveScheduleBtn');
             if (!el) return;
             const cloudLabel = window.CloudBridge?.isCloudEnabled?.() ? ' · Firebase 공유' : '';
-            if (scheduleDirty) {
-                el.innerHTML = `<span class="text-amber-600"><i class="fa-solid fa-circle text-[6px] align-middle mr-1"></i>공유 저장 대기${cloudLabel ? ' (Firebase)' : ''}</span>`;
+            if (autoSaveInProgress) {
+                el.innerHTML = `<span class="text-blue-600"><i class="fa-solid fa-spinner fa-spin mr-1"></i>자동 공유 저장 중...</span>`;
+                btn?.classList.add('ring-2', 'ring-blue-200', 'ring-offset-1');
+            } else if (autoSavePending && scheduleDirty) {
+                el.innerHTML = `<span class="text-amber-600"><i class="fa-solid fa-clock mr-1"></i>곧 자동 저장${cloudLabel ? ' (Firebase)' : ''}</span>`;
+                btn?.classList.add('ring-2', 'ring-amber-300', 'ring-offset-1');
+            } else if (scheduleDirty) {
+                el.innerHTML = `<span class="text-amber-600"><i class="fa-solid fa-circle text-[6px] align-middle mr-1"></i>저장 대기${cloudLabel ? ' (Firebase)' : ''}</span>`;
                 btn?.classList.add('ring-2', 'ring-amber-300', 'ring-offset-1');
             } else if (lastSavedAt) {
-                el.innerHTML = `<span class="text-emerald-600"><i class="fa-solid fa-check mr-1"></i>${formatSavedTime(new Date(lastSavedAt))} 공유 저장됨${cloudLabel}</span>`;
-                btn?.classList.remove('ring-2', 'ring-amber-300', 'ring-offset-1');
+                el.innerHTML = `<span class="text-emerald-600"><i class="fa-solid fa-check mr-1"></i>${formatSavedTime(new Date(lastSavedAt))} 자동 공유 저장됨${cloudLabel}</span>`;
+                btn?.classList.remove('ring-2', 'ring-amber-300', 'ring-blue-200', 'ring-offset-1');
             } else {
                 el.innerHTML = '<span class="text-slate-400">아직 저장하지 않음</span>';
-                btn?.classList.remove('ring-2', 'ring-amber-300', 'ring-offset-1');
+                btn?.classList.remove('ring-2', 'ring-amber-300', 'ring-blue-200', 'ring-offset-1');
             }
         }
 
@@ -2992,7 +3002,7 @@
                     inner.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>Firebase 연결됨 · 저장 실패</strong> — ${writeHint}<br><span class="text-xs font-normal mt-1 inline-block">Firebase Console → Firestore → 규칙 → <code class="bg-white/80 px-1 rounded">schedules</code> 컬렉션 read/write 허용 후 게시하세요. (<a href="https://console.firebase.google.com" target="_blank" rel="noopener" class="underline">Console 열기</a>)</span>`;
                 } else {
                     inner.className = 'rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900';
-                    inner.innerHTML = '<i class="fa-solid fa-cloud-arrow-up mr-2"></i><strong>공유 동기화 활성</strong> — Firebase에 저장된 편성표가 모든 사용자에게 동일하게 표시됩니다. 수정 후 「공유 저장」을 누르면 즉시 반영됩니다.';
+                    inner.innerHTML = '<i class="fa-solid fa-cloud-arrow-up mr-2"></i><strong>공유 동기화 활성</strong> — 수정 시 자동으로 Firebase에 저장됩니다. 모든 사용자에게 동일한 편성표가 표시됩니다.';
                 }
             } else if (configured === false) {
                 banner.classList.remove('hidden');
@@ -3060,7 +3070,7 @@
         }
 
         async function persistScheduleData(options = {}) {
-            const { silent = false, showSuccessToast = !silent, forceCloud = false } = options;
+            const { silent = false, showSuccessToast = !silent, forceCloud = true } = options;
             try {
                 const payload = buildSchedulePayload();
                 const cloudEnabled = window.CloudBridge?.isCloudEnabled?.();
@@ -3089,8 +3099,6 @@
                         }
                         return false;
                     }
-                } else {
-                    window.CloudBridge.scheduleCloudSave(payload);
                 }
 
                 if (isLocalStorageAvailable()) {
@@ -3099,23 +3107,60 @@
 
                 lastSavedAt = payload.savedAt;
                 scheduleDirty = false;
+                autoSavePending = false;
+                if (autoSaveRetryTimer) {
+                    clearTimeout(autoSaveRetryTimer);
+                    autoSaveRetryTimer = null;
+                }
                 updateScheduleSaveStatus();
                 if (showSuccessToast) {
                     showToast('편성표·강사1 일정이 Firebase에 공유 저장되었습니다.', 'success');
                 }
                 return true;
             } catch (err) {
+                scheduleDirty = true;
+                updateScheduleSaveStatus();
                 if (!silent) showToast(`저장 실패: ${err.message}`, 'error');
                 return false;
+            }
+        }
+
+        function scheduleAutoSaveRetry() {
+            if (autoSaveRetryTimer) clearTimeout(autoSaveRetryTimer);
+            autoSaveRetryTimer = setTimeout(() => {
+                autoSaveRetryTimer = null;
+                if (scheduleDirty) flushScheduleAutoSave();
+            }, 2000);
+        }
+
+        async function flushScheduleAutoSave() {
+            if (autoSaveTimer) {
+                clearTimeout(autoSaveTimer);
+                autoSaveTimer = null;
+            }
+            autoSavePending = false;
+            if (!scheduleDirty || !window.CloudBridge?.isCloudEnabled?.()) return;
+            if (autoSaveInProgress) return;
+            autoSaveInProgress = true;
+            updateScheduleSaveStatus();
+            try {
+                const ok = await persistScheduleData({ silent: true, showSuccessToast: false, forceCloud: true });
+                if (!ok && scheduleDirty) scheduleAutoSaveRetry();
+            } finally {
+                autoSaveInProgress = false;
+                updateScheduleSaveStatus();
             }
         }
 
         function scheduleAutoSave() {
             if (!window.CloudBridge?.isCloudEnabled?.()) return;
             if (autoSaveTimer) clearTimeout(autoSaveTimer);
+            autoSavePending = true;
+            updateScheduleSaveStatus();
             autoSaveTimer = setTimeout(() => {
-                if (scheduleDirty) persistScheduleData({ silent: true, showSuccessToast: false, forceCloud: true });
-            }, 600);
+                autoSaveTimer = null;
+                flushScheduleAutoSave();
+            }, AUTO_SAVE_DELAY_MS);
         }
 
         function markScheduleDirty() {
@@ -6277,9 +6322,20 @@
 
         window.addEventListener('beforeunload', (e) => {
             if (scheduleDirty) {
+                flushScheduleAutoSave();
                 e.preventDefault();
                 e.returnValue = '';
             }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && scheduleDirty) {
+                flushScheduleAutoSave();
+            }
+        });
+
+        window.addEventListener('pagehide', () => {
+            if (scheduleDirty) flushScheduleAutoSave();
         });
 
         window.onload = async function() {
@@ -6310,7 +6366,7 @@
 
             if (!loaded) {
                 if (useSharedCloud) {
-                    showToast('공유 편성표가 없습니다. JSON 「불러오기」 또는 자동 편성 후 「공유 저장」하세요.', 'info');
+                    showToast('공유 편성표가 없습니다. JSON 「불러오기」 또는 자동 편성 후 자동 저장됩니다.', 'info');
                     appliedScheduleMigrations = [...SCHEDULE_ONE_TIME_MIGRATION_IDS];
                 }
             } else {

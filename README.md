@@ -47,6 +47,25 @@
 2. **Authentication → Sign-in method → 익명** 로그인 활성화
 3. **Firestore Database** 생성
 4. 웹앱 SDK 설정 JSON을 `FIREBASE_CONFIG` 환경변수에 등록
+5. **Firestore 보안 규칙** (모든 사용자가 동일 편성표를 읽고 쓸 수 있도록):
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /artifacts/{appId}/public/data/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+> `FIREBASE_APP_ID_NAME` 환경변수와 Firestore 경로의 `{appId}`가 일치해야 합니다. (기본값: `instructor1-schedule-2026-v1`)
+
+## 다중 사용자 공유
+
+- **Firebase 연동 시**: Firestore가 단일 공유 저장소입니다. 한 사용자가 「저장」하면 모든 접속자에게 실시간 반영됩니다.
+- **Firebase 미설정 시**: 브라우저 localStorage만 사용되어 **사용자마다 다른 편성표**가 표시됩니다. 배포 후 반드시 Firebase를 설정하세요.
 
 ## GitHub & Vercel 배포
 

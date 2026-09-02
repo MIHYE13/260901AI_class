@@ -386,6 +386,10 @@
         </div>
     </header>
 
+    <div id="cloudSyncBanner" class="hidden max-w-7xl mx-auto px-4 sm:px-6 mt-3">
+        <div class="rounded-xl border px-4 py-3 text-sm font-medium"></div>
+    </div>
+
     <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
         <!-- Toast Notification Box -->
         <div id="toast" class="hidden p-4 rounded-xl text-sm font-medium shadow-md transition-all border flex items-center justify-between">
@@ -2942,15 +2946,53 @@
             const el = document.getElementById('scheduleSaveStatus');
             const btn = document.getElementById('saveScheduleBtn');
             if (!el) return;
+            const cloudLabel = window.CloudBridge?.isCloudEnabled?.() ? ' · 공유 저장' : '';
             if (scheduleDirty) {
-                el.innerHTML = '<span class="text-amber-600"><i class="fa-solid fa-circle text-[6px] align-middle mr-1"></i>저장되지 않은 변경사항</span>';
+                el.innerHTML = `<span class="text-amber-600"><i class="fa-solid fa-circle text-[6px] align-middle mr-1"></i>저장되지 않은 변경사항${cloudLabel ? ' (모든 사용자 공유 대기)' : ''}</span>`;
                 btn?.classList.add('ring-2', 'ring-amber-300', 'ring-offset-1');
             } else if (lastSavedAt) {
-                el.innerHTML = `<span class="text-emerald-600"><i class="fa-solid fa-check mr-1"></i>${formatSavedTime(new Date(lastSavedAt))} 저장됨</span>`;
+                el.innerHTML = `<span class="text-emerald-600"><i class="fa-solid fa-check mr-1"></i>${formatSavedTime(new Date(lastSavedAt))} 저장됨${cloudLabel}</span>`;
                 btn?.classList.remove('ring-2', 'ring-amber-300', 'ring-offset-1');
             } else {
                 el.innerHTML = '<span class="text-slate-400">아직 저장하지 않음</span>';
                 btn?.classList.remove('ring-2', 'ring-amber-300', 'ring-offset-1');
+            }
+        }
+
+        function getCurrentScheduleSavedAt() {
+            if (!lastSavedAt) return 0;
+            const ms = Date.parse(lastSavedAt);
+            return Number.isFinite(ms) ? ms : 0;
+        }
+
+        function syncScheduleLocalCache(payload) {
+            if (!payload || !isLocalStorageAvailable()) return;
+            try {
+                localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(payload));
+                lastSavedAt = payload.savedAt || lastSavedAt;
+                scheduleDirty = false;
+            } catch {
+                /* ignore quota errors */
+            }
+        }
+
+        function updateCloudSyncBanner() {
+            const banner = document.getElementById('cloudSyncBanner');
+            if (!banner) return;
+            const inner = banner.firstElementChild;
+            const enabled = window.CloudBridge?.isCloudEnabled?.();
+            const configured = window.CloudBridge?.isCloudConfigured?.();
+
+            if (enabled) {
+                banner.classList.remove('hidden');
+                inner.className = 'rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900';
+                inner.innerHTML = '<i class="fa-solid fa-cloud-arrow-up mr-2"></i><strong>공유 동기화 활성</strong> — Firebase에 저장된 편성표가 모든 사용자에게 동일하게 표시됩니다. 수정 후 「저장」을 누르면 즉시 공유됩니다.';
+            } else if (configured === false) {
+                banner.classList.remove('hidden');
+                inner.className = 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900';
+                inner.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>공유 저장 미설정</strong> — Firebase가 연결되지 않아 브라우저마다 다른 편성표가 보일 수 있습니다. Vercel 환경변수에 <code class="text-xs bg-white/80 px-1 rounded">FIREBASE_CONFIG</code>를 등록하세요.';
+            } else {
+                banner.classList.add('hidden');
             }
         }
 
@@ -3007,23 +3049,40 @@
             return true;
         }
 
-        function persistScheduleData(options = {}) {
-            const { silent = false, showSuccessToast = !silent } = options;
+        async function persistScheduleData(options = {}) {
+            const { silent = false, showSuccessToast = !silent, forceCloud = false } = options;
             try {
                 const payload = buildSchedulePayload();
-                if (isLocalStorageAvailable()) {
+                const cloudEnabled = window.CloudBridge?.isCloudEnabled?.();
+
+                if (cloudEnabled) {
+                    if (isLocalStorageAvailable()) {
+                        localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(payload));
+                    }
+                    if (forceCloud) {
+                        const cloudOk = await window.CloudBridge.saveToCloud(payload, { silent: !showSuccessToast });
+                        if (!cloudOk) {
+                            scheduleDirty = true;
+                            updateScheduleSaveStatus();
+                            if (!silent) {
+                                showToast('클라우드 저장 실패 — 다른 사용자에게 반영되지 않았습니다.', 'error');
+                            }
+                            return false;
+                        }
+                    } else {
+                        window.CloudBridge.scheduleCloudSave(payload);
+                    }
+                } else if (isLocalStorageAvailable()) {
                     localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(payload));
                 } else if (!silent) {
                     showToast('브라우저 로컬 저장 불가 · 「내보내기」로 JSON 파일을 저장하세요.', 'warning');
                 }
-                if (window.CloudBridge?.isCloudEnabled?.()) {
-                    window.CloudBridge.scheduleCloudSave(payload);
-                }
+
                 lastSavedAt = payload.savedAt;
                 scheduleDirty = false;
                 updateScheduleSaveStatus();
                 if (showSuccessToast) {
-                    const cloudNote = window.CloudBridge?.isCloudEnabled?.() ? ' (클라우드 동기화)' : '';
+                    const cloudNote = cloudEnabled ? ' (모든 사용자에게 공유됨)' : '';
                     showToast(`편성표·강사1 일정이 저장되었습니다.${cloudNote}`, 'success');
                 }
                 return true;
@@ -3046,12 +3105,8 @@
             scheduleAutoSave();
         }
 
-        function saveSchedule() {
-            const saved = persistScheduleData({ silent: false, showSuccessToast: true });
-            if (saved && window.CloudBridge?.isCloudEnabled?.()) {
-                window.CloudBridge.saveToCloud(buildSchedulePayload(), { showSuccessToast: false });
-            }
-            return saved;
+        async function saveSchedule() {
+            return persistScheduleData({ silent: false, showSuccessToast: true, forceCloud: true });
         }
 
         function buildGeminiScheduleContext() {
@@ -6209,8 +6264,9 @@
         });
 
         window.onload = async function() {
+            let cloudInit = { ok: false, configured: false };
             if (window.CloudBridge) {
-                await window.CloudBridge.initCloudIntegration();
+                cloudInit = await window.CloudBridge.initCloudIntegration();
             }
 
             calculateSummaryStats();
@@ -6219,35 +6275,46 @@
             renderStrategySummary();
             renderFixedTimetableSummary();
 
+            const useSharedCloud = window.CloudBridge?.isCloudEnabled?.();
+            const cloudConfiguredButFailed = cloudInit.configured && !useSharedCloud;
+
             let loaded = false;
             let loadSource = null;
-            if (window.CloudBridge?.isCloudEnabled?.()) {
+
+            if (useSharedCloud) {
                 loaded = await window.CloudBridge.loadFromCloud();
                 if (loaded) {
                     loadSource = 'cloud';
-                    showToast('Firebase 클라우드 편성표를 불러왔습니다.', 'info');
+                    showToast('공유 편성표를 불러왔습니다.', 'info');
                 }
-            }
-            if (!loaded && loadScheduleFromStorage()) {
-                loaded = true;
-                loadSource = 'local';
+                window.CloudBridge.startCloudSync();
+            } else if (!cloudConfiguredButFailed) {
+                loaded = loadScheduleFromStorage();
+                if (loaded) loadSource = 'local';
+            } else {
+                showToast('Firebase 연결에 실패했습니다. 새로고침하거나 Vercel 환경 설정을 확인하세요.', 'error');
             }
 
             if (!loaded) {
-                generateClassSchedule();
-                appliedScheduleMigrations = [...SCHEDULE_ONE_TIME_MIGRATION_IDS];
-                if (!selectedWeekStart) selectedWeekStart = getWeekKey('2026-11-05');
-                persistScheduleData({ silent: true, showSuccessToast: false });
+                if (useSharedCloud) {
+                    showToast('공유 편성표가 아직 없습니다. 자동 편성 후 「저장」을 눌러 모든 사용자와 공유하세요.', 'info');
+                    appliedScheduleMigrations = [...SCHEDULE_ONE_TIME_MIGRATION_IDS];
+                } else if (!cloudConfiguredButFailed) {
+                    generateClassSchedule();
+                    appliedScheduleMigrations = [...SCHEDULE_ONE_TIME_MIGRATION_IDS];
+                    if (!selectedWeekStart) selectedWeekStart = getWeekKey('2026-11-05');
+                    await persistScheduleData({ silent: true, showSuccessToast: false });
+                }
             } else {
                 const migrationChanged = ensureScheduleMigrationsOnLoad();
                 reconcileAllClassSessionNumbers();
                 if (loadSource === 'local') {
-                    showToast('저장된 편성표를 불러왔습니다.', 'info');
+                    showToast('저장된 편성표를 불러왔습니다. (로컬 전용 모드)', 'info');
                 }
                 calculateSummaryStats();
                 renderAnalysisMonthCards();
                 if (migrationChanged) {
-                    persistScheduleData({ silent: true, showSuccessToast: false });
+                    await persistScheduleData({ silent: true, showSuccessToast: false, forceCloud: useSharedCloud });
                 }
             }
             if (!selectedWeekStart) selectedWeekStart = getWeekKey('2026-11-05');
@@ -6255,6 +6322,7 @@
             const weekFilter = document.getElementById('weekFilter');
             if (weekFilter) weekFilter.value = selectedWeekStart;
             refreshAllScheduleViews(false);
+            updateCloudSyncBanner();
             const nov5 = plannedTimetable['2026-11-05'];
             const nov30 = plannedTimetable['2026-11-30'];
             const nov24 = plannedTimetable['2026-11-24'];
@@ -6274,6 +6342,10 @@
             initWeeklyGridInteractions();
             updateScheduleSaveStatus();
         };
+
+        window.getCurrentScheduleSavedAt = getCurrentScheduleSavedAt;
+        window.syncScheduleLocalCache = syncScheduleLocalCache;
+        window.isScheduleDirty = () => scheduleDirty;
     </script>
     <script type="module" src="/js/cloud-integration.js"></script>
 </body>

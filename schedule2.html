@@ -48,6 +48,10 @@
         .grade-rule-dow-btn.is-active { background: #4f46e5; color: #fff; border-color: #4338ca; }
         .grade-rule-dow-btn:not(.is-active) { background: #fff; color: #64748b; border-color: #e2e8f0; }
         .grade-rule-dow-btn:not(.is-active):hover { border-color: #a5b4fc; color: #4338ca; }
+        .grade-rule-period-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0; }
+        .grade-rule-period-input { font-size: 10px; padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: #f8fafc; max-width: 130px; }
+        .grade-rule-period-input:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+        .grade-rule-focus-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: #ccfbf1; color: #0f766e; border: 1px solid #99f6e4; }
         #scheduleCellPicker {
             min-width: 280px;
             max-width: 320px;
@@ -808,15 +812,15 @@
                 <details id="gradeDayRulesPanel" class="grade-day-rules-panel rounded-xl border border-teal-200 bg-teal-50/40 overflow-hidden">
                     <summary class="flex items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-teal-900 select-none">
                         <span class="flex items-center gap-2">
-                            <i class="fa-solid fa-sliders text-teal-600"></i> 학년별 요일 배치 규칙
+                            <i class="fa-solid fa-sliders text-teal-600"></i> 학년별 요일 · 집중 운영 기간
                             <span id="gradeDayRulesSummaryBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white text-teal-700 border border-teal-200"></span>
                         </span>
                         <i class="fa-solid fa-chevron-down grade-rules-chevron text-teal-400 text-xs"></i>
                     </summary>
                     <div class="px-4 pb-4 space-y-4 border-t border-teal-100 bg-white/60">
                         <p class="text-xs text-teal-800 pt-3 leading-relaxed">
-                            학년마다 <strong>집중 배치할 요일</strong>을 지정하면 자동 편성·빈 칸 채움 시 해당 요일을 우선합니다.
-                            예: <strong>1학년 → 월·수</strong> 선택 후 「규칙 적용 · 자동 재편성」
+                            학년마다 <strong>집중 배치 요일</strong>과 <strong>집중 운영 기간</strong>(시작~종료일)을 지정하면, 해당 기간 동안 자동 편성·빈 칸 채움 시 우선 적용됩니다.
+                            기간을 비우면 <strong>학기 전체</strong>에 적용됩니다. 예: 1학년 → 월·수, 9/18~10/31
                         </p>
                         <div id="gradeDayRulesEditor" class="space-y-2"></div>
                         <div class="flex flex-wrap items-center gap-3 text-xs">
@@ -1751,61 +1755,159 @@
             };
         }
 
-        let gradeDayPlacementRules = getDefaultGradeDayRules();
+        function getDefaultGradeDayRuleConfigs() {
+            const dowsMap = getDefaultGradeDayRules();
+            const configs = {};
+            for (let grade = 1; grade <= 6; grade++) {
+                configs[grade] = {
+                    dows: [...dowsMap[grade]],
+                    focusStart: '',
+                    focusEnd: '',
+                    focusEnabled: false
+                };
+            }
+            return configs;
+        }
+
+        let gradeDayRuleConfigs = getDefaultGradeDayRuleConfigs();
         let gradeDayRuleStrict = false;
 
-        function normalizeGradeDayRules(raw) {
-            const base = getDefaultGradeDayRules();
-            const normalized = { ...base };
-            if (!raw || typeof raw !== 'object') return normalized;
+        function normalizeGradeDayRuleConfigs(raw) {
+            const defaults = getDefaultGradeDayRuleConfigs();
+            if (!raw || typeof raw !== 'object') return defaults;
+            const normalized = { ...defaults };
             for (let grade = 1; grade <= 6; grade++) {
-                const dows = raw[grade] || raw[String(grade)];
-                if (Array.isArray(dows)) {
-                    normalized[grade] = [...new Set(dows.map(d => parseInt(d, 10)).filter(d => GRADE_RULE_WEEKDAYS.includes(d)))].sort((a, b) => a - b);
+                const entry = raw[grade] || raw[String(grade)];
+                if (!entry) continue;
+                if (Array.isArray(entry)) {
+                    normalized[grade] = {
+                        ...defaults[grade],
+                        dows: [...new Set(entry.map(d => parseInt(d, 10)).filter(d => GRADE_RULE_WEEKDAYS.includes(d)))].sort((a, b) => a - b)
+                    };
+                    continue;
                 }
+                const dows = entry.dows || entry.days;
+                normalized[grade] = {
+                    dows: Array.isArray(dows)
+                        ? [...new Set(dows.map(d => parseInt(d, 10)).filter(d => GRADE_RULE_WEEKDAYS.includes(d)))].sort((a, b) => a - b)
+                        : [...defaults[grade].dows],
+                    focusStart: typeof entry.focusStart === 'string' ? entry.focusStart : '',
+                    focusEnd: typeof entry.focusEnd === 'string' ? entry.focusEnd : '',
+                    focusEnabled: !!entry.focusEnabled
+                };
             }
             return normalized;
         }
 
+        function migrateLegacyGradeDayRules(raw) {
+            const configs = getDefaultGradeDayRuleConfigs();
+            if (!raw || typeof raw !== 'object') return configs;
+            for (let grade = 1; grade <= 6; grade++) {
+                const dows = raw[grade] || raw[String(grade)];
+                if (Array.isArray(dows)) {
+                    configs[grade].dows = [...new Set(dows.map(d => parseInt(d, 10)).filter(d => GRADE_RULE_WEEKDAYS.includes(d)))].sort((a, b) => a - b);
+                }
+            }
+            return configs;
+        }
+
+        function getGradeRuleConfig(grade) {
+            return gradeDayRuleConfigs[grade] || getDefaultGradeDayRuleConfigs()[grade];
+        }
+
+        function isDateInGradeFocusPeriod(grade, dateKey) {
+            const cfg = getGradeRuleConfig(grade);
+            if (!cfg.focusEnabled) return true;
+            const start = cfg.focusStart || SEMESTER_START;
+            const end = cfg.focusEnd || SEMESTER_END;
+            if (dateKey < start || dateKey > end) return false;
+            return true;
+        }
+
+        function isGradeDayRuleActiveForDate(grade, dateKey) {
+            return isDateInGradeFocusPeriod(grade, dateKey);
+        }
+
+        function formatGradeFocusPeriodLabel(grade) {
+            const cfg = getGradeRuleConfig(grade);
+            if (!cfg.focusEnabled) return '학기 전체';
+            const start = cfg.focusStart || SEMESTER_START;
+            const end = cfg.focusEnd || SEMESTER_END;
+            return `${formatShortDate(start)}~${formatShortDate(end)}`;
+        }
+
         function getGradePreferredDows(grade) {
-            const dows = gradeDayPlacementRules[grade];
+            const dows = getGradeRuleConfig(grade).dows;
             if (Array.isArray(dows) && dows.length > 0) return dows;
             if (grade <= 2) return [...GRADE12_PREFERRED_DOWS];
             return [...GRADE36_PREFERRED_DOWS];
         }
 
+        function getGradePreferredDowsForDate(grade, dateKey) {
+            if (!isGradeDayRuleActiveForDate(grade, dateKey)) {
+                if (grade <= 2) return [...GRADE12_PREFERRED_DOWS];
+                return [...GRADE36_PREFERRED_DOWS];
+            }
+            return getGradePreferredDows(grade);
+        }
+
         function formatGradeDayRuleLabel(grade) {
             const dows = getGradePreferredDows(grade);
             if (!dows.length) return '요일 미지정';
-            return dows.map(d => WEEKDAY_NAMES[d]).join('·');
+            const dowLabel = dows.map(d => WEEKDAY_NAMES[d]).join('·');
+            return `${dowLabel} (${formatGradeFocusPeriodLabel(grade)})`;
+        }
+
+        function getLegacyGradeDayPlacementRules() {
+            const legacy = {};
+            for (let grade = 1; grade <= 6; grade++) {
+                legacy[grade] = [...getGradePreferredDows(grade)];
+            }
+            return legacy;
         }
 
         function renderGradeDayRulesPanel() {
             const editor = document.getElementById('gradeDayRulesEditor');
             if (!editor) return;
 
-            editor.innerHTML = GRADE_RULE_WEEKDAYS.length
-                ? [1, 2, 3, 4, 5, 6].map(grade => {
-                    const classCount = SCHOOL_CLASSES.filter(c => c.grade === grade).length;
-                    const selected = new Set(getGradePreferredDows(grade));
-                    const dowsHtml = GRADE_RULE_WEEKDAYS.map(dow => `
-                        <button type="button"
-                            class="grade-rule-dow-btn px-2 py-1 rounded-md border text-[11px] font-bold transition ${selected.has(dow) ? 'is-active' : ''}"
-                            data-grade="${grade}" data-dow="${dow}"
-                            onclick="toggleGradeDayRuleDow(${grade}, ${dow})"
-                            title="${grade}학년 ${WEEKDAY_NAMES[dow]}요일 ${selected.has(dow) ? '해제' : '선택'}">
-                            ${WEEKDAY_NAMES[dow]}
-                        </button>
-                    `).join('');
-                    return `
-                        <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-lg border border-slate-200 bg-white">
+            editor.innerHTML = [1, 2, 3, 4, 5, 6].map(grade => {
+                const classCount = SCHOOL_CLASSES.filter(c => c.grade === grade).length;
+                const cfg = getGradeRuleConfig(grade);
+                const selected = new Set(getGradePreferredDows(grade));
+                const dowsHtml = GRADE_RULE_WEEKDAYS.map(dow => `
+                    <button type="button"
+                        class="grade-rule-dow-btn px-2 py-1 rounded-md border text-[11px] font-bold transition ${selected.has(dow) ? 'is-active' : ''}"
+                        data-grade="${grade}" data-dow="${dow}"
+                        onclick="toggleGradeDayRuleDow(${grade}, ${dow})"
+                        title="${grade}학년 ${WEEKDAY_NAMES[dow]}요일 ${selected.has(dow) ? '해제' : '선택'}">
+                        ${WEEKDAY_NAMES[dow]}
+                    </button>
+                `).join('');
+                return `
+                    <div class="p-2.5 rounded-lg border border-slate-200 bg-white space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
                             <span class="w-16 shrink-0 text-xs font-bold text-slate-800">${grade}학년</span>
                             <div class="flex flex-wrap gap-1">${dowsHtml}</div>
-                            <span class="text-[10px] text-slate-400 ml-auto">${classCount}학급 · ${formatGradeDayRuleLabel(grade)}</span>
+                            <span class="text-[10px] text-slate-400 ml-auto">${classCount}학급</span>
                         </div>
-                    `;
-                }).join('')
-                : '';
+                        <div class="grade-rule-period-row">
+                            <label class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-slate-600 cursor-pointer">
+                                <input type="checkbox" id="gradeFocusEnabled-${grade}" class="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                                    ${cfg.focusEnabled ? 'checked' : ''} onchange="toggleGradeFocusEnabled(${grade}, this.checked)">
+                                집중 기간
+                            </label>
+                            <input type="date" id="gradeFocusStart-${grade}" class="grade-rule-period-input"
+                                min="${SEMESTER_START}" max="${SEMESTER_END}" value="${cfg.focusStart || ''}"
+                                ${cfg.focusEnabled ? '' : 'disabled'} onchange="updateGradeFocusPeriod(${grade}, 'focusStart', this.value)">
+                            <span class="text-[10px] text-slate-400">~</span>
+                            <input type="date" id="gradeFocusEnd-${grade}" class="grade-rule-period-input"
+                                min="${SEMESTER_START}" max="${SEMESTER_END}" value="${cfg.focusEnd || ''}"
+                                ${cfg.focusEnabled ? '' : 'disabled'} onchange="updateGradeFocusPeriod(${grade}, 'focusEnd', this.value)">
+                            <span class="grade-rule-focus-badge">${formatGradeFocusPeriodLabel(grade)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
             const strictEl = document.getElementById('gradeDayRuleStrict');
             if (strictEl) strictEl.checked = gradeDayRuleStrict;
@@ -1836,21 +1938,52 @@
             } else {
                 current.add(dow);
             }
-            gradeDayPlacementRules[grade] = [...current].sort((a, b) => a - b);
+            gradeDayRuleConfigs[grade].dows = [...current].sort((a, b) => a - b);
             renderGradeDayRulesPanel();
+            markScheduleDirty();
+        }
+
+        function toggleGradeFocusEnabled(grade, enabled) {
+            gradeDayRuleConfigs[grade].focusEnabled = enabled;
+            if (enabled && !gradeDayRuleConfigs[grade].focusStart) {
+                gradeDayRuleConfigs[grade].focusStart = SEMESTER_START;
+            }
+            if (enabled && !gradeDayRuleConfigs[grade].focusEnd) {
+                gradeDayRuleConfigs[grade].focusEnd = SEMESTER_END;
+            }
+            renderGradeDayRulesPanel();
+            markScheduleDirty();
+        }
+
+        function updateGradeFocusPeriod(grade, field, value) {
+            if (!gradeDayRuleConfigs[grade]) return;
+            gradeDayRuleConfigs[grade][field] = value || '';
+            const cfg = gradeDayRuleConfigs[grade];
+            if (cfg.focusStart && cfg.focusEnd && cfg.focusStart > cfg.focusEnd) {
+                showToast(`${grade}학년: 시작일이 종료일보다 늦습니다.`, 'warning');
+            }
+            renderGradeDayRulesSummary();
             markScheduleDirty();
         }
 
         function syncGradeDayRulesFromUI() {
             const strictEl = document.getElementById('gradeDayRuleStrict');
             if (strictEl) gradeDayRuleStrict = strictEl.checked;
+            for (let grade = 1; grade <= 6; grade++) {
+                const enabledEl = document.getElementById(`gradeFocusEnabled-${grade}`);
+                const startEl = document.getElementById(`gradeFocusStart-${grade}`);
+                const endEl = document.getElementById(`gradeFocusEnd-${grade}`);
+                if (enabledEl) gradeDayRuleConfigs[grade].focusEnabled = enabledEl.checked;
+                if (startEl) gradeDayRuleConfigs[grade].focusStart = startEl.value || '';
+                if (endEl) gradeDayRuleConfigs[grade].focusEnd = endEl.value || '';
+            }
         }
 
         function saveGradeDayRulesFromUI() {
             syncGradeDayRulesFromUI();
             persistScheduleData({ silent: false, showSuccessToast: true });
             renderGradeDayRulesSummary();
-            showToast('학년별 요일 배치 규칙을 저장했습니다.', 'success');
+            showToast('학년별 요일·집중 운영 기간 규칙을 저장했습니다.', 'success');
         }
 
         function applyGradeDayRulesAndRegenerate() {
@@ -1859,30 +1992,37 @@
                 showToast('각 학년마다 최소 1개 요일을 선택해 주세요.', 'warning');
                 return;
             }
+            for (let grade = 1; grade <= 6; grade++) {
+                const cfg = getGradeRuleConfig(grade);
+                if (cfg.focusEnabled && cfg.focusStart && cfg.focusEnd && cfg.focusStart > cfg.focusEnd) {
+                    showToast(`${grade}학년 집중 기간 날짜를 확인해 주세요.`, 'warning');
+                    return;
+                }
+            }
             persistScheduleData({ silent: true, showSuccessToast: false });
             generateClassSchedule();
             renderGradeDayRulesSummary();
         }
 
         function resetGradeDayRulesToDefault() {
-            gradeDayPlacementRules = getDefaultGradeDayRules();
+            gradeDayRuleConfigs = getDefaultGradeDayRuleConfigs();
             gradeDayRuleStrict = false;
             renderGradeDayRulesPanel();
             markScheduleDirty();
-            showToast('학년별 요일 규칙을 기본값(1~2학년 월·금, 3~6학년 화·수·목)으로 복원했습니다.', 'info');
+            showToast('학년별 요일·집중 기간 규칙을 기본값으로 복원했습니다.', 'info');
         }
 
         function applyGradeDayRulePreset(presetId) {
             const defaults = getDefaultGradeDayRules();
             if (presetId === '12-monfri') {
-                gradeDayPlacementRules[1] = [1, 5];
-                gradeDayPlacementRules[2] = [1, 5];
+                gradeDayRuleConfigs[1].dows = [1, 5];
+                gradeDayRuleConfigs[2].dows = [1, 5];
             } else if (presetId === '1-monwed') {
-                gradeDayPlacementRules[1] = [1, 3];
+                gradeDayRuleConfigs[1].dows = [1, 3];
             } else if (presetId === '36-tuweth') {
-                [3, 4, 5, 6].forEach(g => { gradeDayPlacementRules[g] = [2, 3, 4]; });
+                [3, 4, 5, 6].forEach(g => { gradeDayRuleConfigs[g].dows = [2, 3, 4]; });
             } else {
-                gradeDayPlacementRules = defaults;
+                gradeDayRuleConfigs = getDefaultGradeDayRuleConfigs();
             }
             renderGradeDayRulesPanel();
             markScheduleDirty();
@@ -1896,12 +2036,15 @@
         const isMondayFirstPeriodBlocked = isMondayFirstPeriodAutoExcluded;
 
         /** 학년별 권장 요일 가산/감점 (낮을수록 우선) */
-        function getGradeDayPreferenceScore(cls, dow) {
-            const preferred = getGradePreferredDows(cls.grade);
-            if (preferred.includes(dow)) return -130;
+        function getGradeDayPreferenceScore(cls, dow, dateKey = null) {
+            const grade = cls.grade;
+            const inFocus = !dateKey || isGradeDayRuleActiveForDate(grade, dateKey);
+            const preferred = inFocus ? getGradePreferredDows(grade) : getGradePreferredDowsForDate(grade, dateKey);
 
-            const softPenalty = gradeDayRuleStrict ? 520 : 90;
-            const neutralPenalty = gradeDayRuleStrict ? 480 : 60;
+            if (preferred.includes(dow)) return inFocus ? -130 : -80;
+
+            const softPenalty = gradeDayRuleStrict && inFocus ? 520 : 90;
+            const neutralPenalty = gradeDayRuleStrict && inFocus ? 480 : 60;
 
             if (cls.grade <= 2) {
                 if (GRADE36_PREFERRED_DOWS.includes(dow)) return softPenalty + 20;
@@ -1914,8 +2057,11 @@
             return 0;
         }
 
-        function isGradeOnPreferredDay(cls, dow) {
-            return getGradePreferredDows(cls.grade).includes(dow);
+        function isGradeOnPreferredDay(cls, dow, dateKey = null) {
+            const preferred = dateKey
+                ? getGradePreferredDowsForDate(cls.grade, dateKey)
+                : getGradePreferredDows(cls.grade);
+            return preferred.includes(dow);
         }
 
         /** 학급별 배치 가능 교시: 1~4교시 + 5·6학년 월·화·목·금 6교시 */
@@ -2399,8 +2545,10 @@
             const dow = d.getDay();
             if ((cls.grade === 3 || cls.grade === 6) && !isGrade36PlacementDate(dateKey)) return false;
             if (!isInstructorAvailable(dateKey)) return false;
-            if (gradeDayRuleStrict && dow >= 1 && dow <= 5 && !getGradePreferredDows(cls.grade).includes(dow)) {
-                return false;
+            if (gradeDayRuleStrict && isGradeDayRuleActiveForDate(cls.grade, dateKey)) {
+                if (dow >= 1 && dow <= 5 && !getGradePreferredDows(cls.grade).includes(dow)) {
+                    return false;
+                }
             }
             return true;
         }
@@ -2463,7 +2611,7 @@
         }
 
         /** 1순위: 같은 요일 고정 / 2순위: 시기 연속성 / 학년별 권장 요일 / 교시 1~4 우선 */
-        function scoreSlotPreference(cls, dow, period) {
+        function scoreSlotPreference(cls, dow, period, dateKey = null) {
             const pref = classPreferredSlot[cls.id];
             const last = getClassLastAssignmentSlot(cls.id);
             let score;
@@ -2474,7 +2622,7 @@
             else if (last) score = 280 + Math.abs(dow - last.dow) * 15;
             else score = 400;
 
-            score += getGradeDayPreferenceScore(cls, dow);
+            score += getGradeDayPreferenceScore(cls, dow, dateKey);
 
             if (period <= 4) score -= 50;
             else if (cls.grade >= 5 && period === 6 && isGrade56SixthPeriodDay(dow)) score += 15;
@@ -2540,7 +2688,7 @@
                     findAutoConsecutivePairsForClass(cls, dateKey).forEach(([p1, p2]) => {
                         candidates.push({
                             dateKey, period: p1, period2: p2, dow,
-                            score: scoreSlotPreference(cls, dow, p1) + scoreSlotPreference(cls, dow, p2) - 80
+                            score: scoreSlotPreference(cls, dow, p1, dateKey) + scoreSlotPreference(cls, dow, p2, dateKey) - 80
                         });
                     });
                     continue;
@@ -2551,7 +2699,7 @@
                     if (dayPlan[p]) continue;
                     candidates.push({
                         dateKey, period: p, dow,
-                        score: scoreSlotPreference(cls, dow, p)
+                        score: scoreSlotPreference(cls, dow, p, dateKey)
                     });
                 }
             }
@@ -2768,7 +2916,8 @@
             return {
                 plannedTimetable: JSON.parse(JSON.stringify(plannedTimetable)),
                 classPreferredSlot: JSON.parse(JSON.stringify(classPreferredSlot)),
-                gradeDayPlacementRules: JSON.parse(JSON.stringify(gradeDayPlacementRules)),
+                gradeDayRuleConfigs: JSON.parse(JSON.stringify(gradeDayRuleConfigs)),
+                gradeDayPlacementRules: getLegacyGradeDayPlacementRules(),
                 gradeDayRuleStrict,
                 instructor1Schedules: JSON.parse(JSON.stringify(instructor1Schedules)),
                 selectedWeekStart,
@@ -2782,7 +2931,11 @@
             classPreferredSlot = data.classPreferredSlot
                 ? JSON.parse(JSON.stringify(data.classPreferredSlot))
                 : {};
-            gradeDayPlacementRules = normalizeGradeDayRules(data.gradeDayPlacementRules);
+            if (data.gradeDayRuleConfigs) {
+                gradeDayRuleConfigs = normalizeGradeDayRuleConfigs(data.gradeDayRuleConfigs);
+            } else {
+                gradeDayRuleConfigs = migrateLegacyGradeDayRules(data.gradeDayPlacementRules);
+            }
             gradeDayRuleStrict = !!data.gradeDayRuleStrict;
             if (data.instructor1Schedules && typeof data.instructor1Schedules === 'object') {
                 instructor1Schedules = JSON.parse(JSON.stringify(data.instructor1Schedules));
@@ -5286,7 +5439,7 @@
                         warnings.push(`${cls.label}: 권장 ${WEEKDAY_NAMES[pref.dow]}요일 외 배정 ${inconsistent.length}건`);
                     }
                 }
-                const offPreferred = assignments.filter(a => !isGradeOnPreferredDay(cls, a.dow));
+                const offPreferred = assignments.filter(a => !isGradeOnPreferredDay(cls, a.dow, a.dateKey));
                 if (offPreferred.length > 0) {
                     const hint = formatGradeDayRuleLabel(cls.grade);
                     warnings.push(`${cls.label}: 권장 요일(${hint}) 외 배정 ${offPreferred.length}건`);
@@ -5522,7 +5675,7 @@
                 !isClassWeeklyVisitLimitReached(cls.id, week.weekStart) &&
                 getClassPlacementPeriods(cls, dow, dateKey).includes(period)
             );
-            due.sort((a, b) => scoreSlotPreference(a, dow, period) - scoreSlotPreference(b, dow, period));
+            due.sort((a, b) => scoreSlotPreference(a, dow, period, dateKey) - scoreSlotPreference(b, dow, period, dateKey));
             for (const cls of due) {
                 const slot = { dateKey, period, dow };
                 if (assignClassToSlot(cls, slot)) return true;
@@ -5980,6 +6133,8 @@
         window.applyGradeDayRulesAndRegenerate = applyGradeDayRulesAndRegenerate;
         window.resetGradeDayRulesToDefault = resetGradeDayRulesToDefault;
         window.applyGradeDayRulePreset = applyGradeDayRulePreset;
+        window.toggleGradeFocusEnabled = toggleGradeFocusEnabled;
+        window.updateGradeFocusPeriod = updateGradeFocusPeriod;
         window.printFullSchedule = printFullSchedule;
 
         window.addEventListener('beforeunload', (e) => {

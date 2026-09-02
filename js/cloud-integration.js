@@ -34,7 +34,7 @@ function updateCloudUI(state = {}) {
     badge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200';
     badge.title = '모든 사용자가 동일한 편성표를 실시간으로 공유합니다.';
   } else if (state.configured === false) {
-    badge.textContent = '로컬 저장 (공유 불가)';
+    badge.textContent = '공유 저장 불가';
     badge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200';
     badge.title = 'Firebase 미설정 — Vercel 환경변수 FIREBASE_CONFIG를 등록하세요.';
   } else {

@@ -4,7 +4,7 @@
 
 ## 로컬 실행
 
-`index.html`을 브라우저에서 열면 됩니다. (로컬 파일에서는 API·Firebase 연동 없이 localStorage만 사용)
+`index.html`을 브라우저에서 직접 열면 Firebase API(`/api/config`)를 사용할 수 없어 **공유 저장·불러오기가 동작하지 않습니다.** Vercel 배포 URL을 사용하세요.
 
 ## Vercel 환경변수 등록
 
@@ -38,8 +38,8 @@
 ```
 
 - **Gemini**: 헤더 **AI 조언** 버튼 (환경변수 등록 시 표시)
-- **Firebase**: 헤더 **Firebase 연동** 배지, 저장 시 자동 클라우드 동기화
-- **localStorage**: Firebase 미설정 시 기존처럼 브라우저 로컬 저장
+- **Firebase**: 헤더 **Firebase 공유 동기화** 배지, 「공유 저장」 시 Firestore에 저장·실시간 동기화
+- **JSON 내보내기/불러오기**: 백업·복원용 (불러오기 후 공유 저장 필요)
 
 ## Firebase 설정 (Firestore)
 
@@ -59,8 +59,8 @@ match /schedules/{docId} {
 
 ## 다중 사용자 공유
 
-- **Firebase 연동 시**: Firestore가 단일 공유 저장소입니다. 한 사용자가 「저장」하면 모든 접속자에게 실시간 반영됩니다.
-- **Firebase 미설정 시**: 브라우저 localStorage만 사용되어 **사용자마다 다른 편성표**가 표시됩니다. 배포 후 반드시 Firebase를 설정하세요.
+- **Firebase 연동 시**: Firestore가 유일한 공유 저장소입니다. 「공유 저장」하면 모든 접속자에게 실시간 반영됩니다.
+- **Firebase 미설정 시**: 편성표 저장·불러오기가 불가합니다. 배포 후 반드시 Firebase를 설정하세요.
 
 ## GitHub & Vercel 배포
 

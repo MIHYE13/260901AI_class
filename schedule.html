@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026년 하반기 강사 수업 가능일 조율</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Pretendard', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold text-indigo-600 flex items-center gap-2 flex-wrap">
+                    <i class="fa-solid fa-calendar-days"></i> 2026 하반기 강사 일정 조율
+                    <span id="cloudStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">연결 대기</span>
+                </h1>
+                <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Google Gemini Canvas 전용 · 평일(월~금) 수업 가능 여부 및 일별 메모 입력</p>
+            </div>
+            
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+                <div class="relative flex-1 sm:w-64">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                        <i class="fa-solid fa-user"></i>
+                    </span>
+                    <input type="text" id="instructorNameInput" placeholder="강사 성함 입력" 
+                           class="w-full pl-9 pr-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                </div>
+                <button onclick="window.saveSchedule()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition shadow-sm flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> 저장
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-6 flex-1 w-full">
+        <!-- Offline Notice (shown when not running in Gemini Canvas) -->
+        <div id="offlineNotice" class="hidden mb-4 p-3 rounded-lg text-sm font-medium text-center bg-amber-50 text-amber-800 border border-amber-200">
+            <i class="fa-solid fa-circle-info mr-1"></i>
+            이 앱은 <strong>Google Gemini Canvas</strong>에서만 클라우드 저장·공유가 가능합니다. Gemini에 코드를 업로드하고 공유 링크를 사용해주세요.
+        </div>
+
+        <!-- Status Notification Box -->
+        <div id="toast" class="hidden mb-4 p-3 rounded-lg text-sm font-medium text-center transition-all shadow-sm"></div>
+
+        <!-- Share Link Box -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-2 text-sm text-slate-600">
+                <i class="fa-solid fa-share-nodes text-indigo-500"></i>
+                <span>링크를 복사하여 다른 강사분들과 공유하세요. (실시간 클라우드 공유 지원)</span>
+            </div>
+            <button onclick="window.copyShareLink()" class="w-full sm:w-auto bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3.5 py-2 rounded-lg text-xs sm:text-sm transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-link"></i> 공유 링크 복사하기
+            </button>
+        </div>
+
+        <!-- Legend / Instructions -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap items-center justify-around gap-4 text-xs sm:text-sm">
+            <div class="flex items-center gap-2">
+                <span class="w-3.5 h-3.5 rounded-full bg-slate-200 inline-block"></span>
+                <span class="text-slate-600">미정 (클릭 시 변경)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 inline-block shadow-sm"></span>
+                <span class="font-medium text-emerald-700">가능 🟢</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-3.5 h-3.5 rounded-full bg-rose-500 inline-block shadow-sm"></span>
+                <span class="font-medium text-rose-700">불가능 ❌</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-3.5 h-3.5 rounded-full bg-red-100 border border-red-300 inline-block"></span>
+                <span class="font-medium text-red-600">학교 공휴일/행사 (수정 불가)</span>
+            </div>
+        </div>
+
+        <!-- Calendar Months Container -->
+        <div id="calendar-wrapper" class="space-y-6">
+            <!-- Dynamically injected months -->
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 mt-10">
+        <p>2026 하반기 강사 수업 일정 조율 · Google Gemini Canvas 클라우드 공유 시스템</p>
+    </footer>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'instructor-schedule-2026-public-v1';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+        let app, db, auth;
+        let isCloudMode = false;
+        let isApplyingRemoteUpdate = false;
+        let isSaving = false;
+        let memoSaveTimer = null;
+        let scheduleState = {};
+        let currentInstructor = "";
+        let allInstructorsData = {};
+
+        const lockedHolidays = {
+            "2026-09-24": "추석 연휴",
+            "2026-09-25": "추석",
+            "2026-10-05": "개천절 대체공휴일",
+            "2026-10-08": "학교 운동회 (수업불가)",
+            "2026-10-09": "한글날",
+            "2026-12-25": "성탄절"
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlInstructor = urlParams.get('instructor');
+        if (urlInstructor) {
+            currentInstructor = decodeURIComponent(urlInstructor);
+        }
+
+        function updateCloudStatusUI(connected) {
+            const badge = document.getElementById('cloudStatusBadge');
+            const offline = document.getElementById('offlineNotice');
+            if (!badge) return;
+            if (connected) {
+                badge.textContent = 'Gemini 클라우드';
+                badge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200';
+                if (offline) offline.classList.add('hidden');
+            } else {
+                badge.textContent = '오프라인';
+                badge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200';
+                if (offline) offline.classList.remove('hidden');
+            }
+        }
+
+        function loadInstructorSchedule(name) {
+            if (name && allInstructorsData[name]) {
+                scheduleState = JSON.parse(JSON.stringify(allInstructorsData[name]));
+            } else {
+                scheduleState = {};
+            }
+            renderCalendars();
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const nameInput = document.getElementById('instructorNameInput');
+            if (currentInstructor) {
+                nameInput.value = currentInstructor;
+            }
+
+            nameInput.addEventListener('input', (e) => {
+                currentInstructor = e.target.value.trim();
+                loadInstructorSchedule(currentInstructor);
+            });
+
+            renderCalendars();
+            updateCloudStatusUI(false);
+
+            if (!firebaseConfig) {
+                showToast("Gemini Canvas 환경이 아닙니다. Google Gemini에 업로드하면 클라우드 저장이 활성화됩니다.", "bg-amber-100 text-amber-800");
+                return;
+            }
+
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                isCloudMode = true;
+                updateCloudStatusUI(true);
+                initFirestoreSync();
+                showToast("Gemini 클라우드에 연결되었습니다. 저장 시 모든 강사와 실시간 공유됩니다.", "bg-emerald-100 text-emerald-800");
+            } catch (err) {
+                console.warn("Firebase initialization warning:", err);
+                updateCloudStatusUI(false);
+                showToast("클라우드 연결에 실패했습니다. Gemini Canvas에서 다시 실행해주세요.", "bg-rose-100 text-rose-800");
+            }
+        });
+
+        function initFirestoreSync() {
+            if (!db) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'instructor_schedules_2026');
+
+            onSnapshot(docRef, (docSnap) => {
+                isApplyingRemoteUpdate = true;
+                allInstructorsData = docSnap.exists() ? (docSnap.data() || {}) : {};
+
+                if (currentInstructor && allInstructorsData[currentInstructor]) {
+                    scheduleState = JSON.parse(JSON.stringify(allInstructorsData[currentInstructor]));
+                    renderCalendars();
+                } else if (!currentInstructor && urlInstructor && allInstructorsData[urlInstructor]) {
+                    currentInstructor = urlInstructor;
+                    document.getElementById('instructorNameInput').value = currentInstructor;
+                    scheduleState = JSON.parse(JSON.stringify(allInstructorsData[urlInstructor]));
+                    renderCalendars();
+                }
+                isApplyingRemoteUpdate = false;
+            }, (error) => {
+                console.warn("Firestore sync notice:", error);
+                isApplyingRemoteUpdate = false;
+            });
+        }
+
+        async function persistToCloud(showSuccessToast) {
+            if (!currentInstructor) {
+                showToast("저장하시기 전에 강사 성함을 입력해주세요!", "bg-rose-100 text-rose-800");
+                document.getElementById('instructorNameInput').focus();
+                return false;
+            }
+
+            if (!db || !isCloudMode) {
+                showToast("Gemini Canvas 환경에서만 클라우드 저장이 가능합니다.", "bg-amber-100 text-amber-800");
+                return false;
+            }
+
+            if (isSaving) return false;
+            isSaving = true;
+
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'instructor_schedules_2026');
+                let allData = {};
+                try {
+                    const snap = await getDoc(docRef);
+                    if (snap.exists()) allData = snap.data() || {};
+                } catch (readErr) {
+                    console.warn("Could not read existing doc, creating new record:", readErr);
+                }
+
+                allData[currentInstructor] = scheduleState;
+                allInstructorsData = allData;
+                await setDoc(docRef, allData, { merge: true });
+
+                const newUrl = `${window.location.pathname}?instructor=${encodeURIComponent(currentInstructor)}`;
+                window.history.replaceState({}, '', newUrl);
+
+                if (showSuccessToast) {
+                    showToast(`[${currentInstructor}] 일정이 Gemini 클라우드에 저장되었습니다!`, "bg-emerald-100 text-emerald-800");
+                }
+                return true;
+            } catch (e) {
+                console.error("Save error:", e);
+                showToast(`[${currentInstructor}] 클라우드 저장 중 오류가 발생했습니다.`, "bg-rose-100 text-rose-800");
+                return false;
+            } finally {
+                isSaving = false;
+            }
+        }
+
+        function scheduleAutoSave() {
+            if (!isCloudMode || isApplyingRemoteUpdate || !currentInstructor) return;
+            clearTimeout(memoSaveTimer);
+            memoSaveTimer = setTimeout(() => persistToCloud(false), 800);
+        }
+
+        window.saveSchedule = async function() {
+            await persistToCloud(true);
+        };
+
+        window.copyShareLink = function() {
+            const name = document.getElementById('instructorNameInput').value.trim();
+            let shareUrl = window.location.href.split('?')[0];
+            if (name) {
+                shareUrl += `?instructor=${encodeURIComponent(name)}`;
+            }
+
+            const tempInput = document.createElement('input');
+            tempInput.value = shareUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            try {
+                document.execCommand('copy');
+                showToast("Gemini 공유 링크가 클립보드에 복사되었습니다!", "bg-indigo-100 text-indigo-800");
+            } catch (err) {
+                showToast("링크 복사에 실패했습니다. 주소창 URL을 직접 공유해주세요.", "bg-amber-100 text-amber-800");
+            }
+            document.body.removeChild(tempInput);
+        };
+
+        window.toggleDate = function(element, dateKey) {
+            if (lockedHolidays[dateKey]) {
+                showToast(`[${lockedHolidays[dateKey]}] 당일은 학사일정 공휴일/행사로 지정되어 변경할 수 없습니다.`, "bg-amber-100 text-amber-800");
+                return;
+            }
+
+            let current = scheduleState[dateKey] || { status: '', memo: '' };
+            let currentState = current.status;
+
+            if (currentState === '') {
+                current.status = 'available';
+            } else if (currentState === 'available') {
+                current.status = 'unavailable';
+            } else {
+                current.status = '';
+            }
+
+            scheduleState[dateKey] = current;
+            renderCalendars();
+            scheduleAutoSave();
+        };
+
+        window.updateMemo = function(event, dateKey) {
+            event.stopPropagation();
+            const memoText = event.target.value;
+            if (!scheduleState[dateKey]) {
+                scheduleState[dateKey] = { status: '', memo: memoText };
+            } else {
+                scheduleState[dateKey].memo = memoText;
+            }
+            scheduleAutoSave();
+        };
+
+        function renderCalendars() {
+            const container = document.getElementById('calendar-wrapper');
+            container.innerHTML = '';
+
+            const months = [
+                { year: 2026, month: 8, title: '2026년 9월' },
+                { year: 2026, month: 9, title: '2026년 10월' },
+                { year: 2026, month: 10, title: '2026년 11월' },
+                { year: 2026, month: 11, title: '2026년 12월' }
+            ];
+
+            const weekdays = ['월', '화', '수', '목', '금'];
+
+            months.forEach(m => {
+                const section = document.createElement('div');
+                section.className = 'bg-white p-5 rounded-xl border border-slate-200 shadow-sm';
+
+                let html = `
+                    <h2 class="text-base sm:text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
+                        <span>${m.title}</span>
+                        <span class="text-xs font-normal text-slate-400">평일(월~금) 수업 조율</span>
+                    </h2>
+                    <div class="grid grid-cols-5 gap-2 mb-2">
+                `;
+
+                weekdays.forEach(wd => {
+                    html += `<div class="text-center text-xs font-bold text-slate-400 py-1">${wd}</div>`;
+                });
+                html += `</div>`;
+
+                let weekdayCells = [];
+                const lastDate = new Date(m.year, m.month + 1, 0).getDate();
+
+                for (let d = 1; d <= lastDate; d++) {
+                    const dateObj = new Date(m.year, m.month, d);
+                    const dayOfWeek = dateObj.getDay(); 
+
+                    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+                        const monthStr = String(m.month + 1).padStart(2, '0');
+                        const dayStr = String(d).padStart(2, '0');
+                        const dateKey = `${m.year}-${monthStr}-${dayStr}`;
+
+                        weekdayCells.push({
+                            dateKey: dateKey,
+                            dayNum: d,
+                            weekday: dayOfWeek
+                        });
+                    }
+                }
+
+                html += `<div class="grid grid-cols-5 gap-2">`;
+
+                if (weekdayCells.length > 0) {
+                    const firstWeekday = weekdayCells[0].weekday;
+                    for (let i = 1; i < firstWeekday; i++) {
+                        html += `<div class="h-28 sm:h-32"></div>`;
+                    }
+                }
+
+                weekdayCells.forEach(cell => {
+                    const isHoliday = lockedHolidays[cell.dateKey];
+                    let cellData = scheduleState[cell.dateKey] || { status: '', memo: '' };
+                    let state = cellData.status;
+                    let memo = cellData.memo || '';
+                    
+                    // 11월 19일 및 12월 4일 기본 공지 설정 (수업 선택은 가능)
+                    if (cell.dateKey === '2026-11-19' && !memo && !scheduleState[cell.dateKey]) {
+                        memo = '10시부터 수업';
+                        cellData.memo = memo;
+                        scheduleState[cell.dateKey] = cellData;
+                    }
+                    if (cell.dateKey === '2026-12-04' && !memo && !scheduleState[cell.dateKey]) {
+                        memo = '1,2교시 전교임원선거(수업불가)';
+                        cellData.memo = memo;
+                        scheduleState[cell.dateKey] = cellData;
+                    }
+
+                    let bgClass = 'bg-slate-50 border-slate-200 hover:border-indigo-400 text-slate-700 cursor-pointer';
+                    let statusText = '미정';
+                    let statusColor = 'text-slate-400';
+
+                    if (isHoliday) {
+                        bgClass = 'bg-red-50 border-red-200 text-red-900 cursor-not-allowed opacity-90';
+                        statusText = `🔴 ${isHoliday}`;
+                        statusColor = 'text-red-600 font-semibold text-[10px] sm:text-[11px] truncate';
+                    } else if (state === 'available') {
+                        bgClass = 'bg-emerald-50 border-emerald-300 text-emerald-900 shadow-sm cursor-pointer';
+                        statusText = '가능🟢';
+                        statusColor = 'text-emerald-700 font-medium';
+                    } else if (state === 'unavailable') {
+                        bgClass = 'bg-rose-50 border-rose-300 text-rose-900 shadow-sm cursor-pointer';
+                        statusText = '불가능❌';
+                        statusColor = 'text-rose-700 font-medium';
+                    }
+
+                    html += `
+                        <div class="day-cell rounded-xl border p-2 text-center transition-all duration-150 select-none flex flex-col justify-between h-28 sm:h-32 ${bgClass}"
+                             onclick="window.toggleDate(this, '${cell.dateKey}')">
+                            <div class="flex flex-col items-center">
+                                <div class="text-sm font-bold">${cell.dayNum}일</div>
+                                <div class="text-[11px] sm:text-xs ${statusColor}" title="${isHoliday || ''}">${statusText}</div>
+                            </div>
+                            <div class="mt-1 pt-1 border-t border-slate-200/60">
+                                <input type="text" placeholder="${isHoliday ? '공휴일 고정' : '메모 입력'}" value="${isHoliday ? isHoliday : memo}" 
+                                       ${isHoliday ? 'disabled' : ''}
+                                       oninput="window.updateMemo(event, '${cell.dateKey}')"
+                                       onclick="event.stopPropagation()"
+                                       class="w-full text-[11px] px-1.5 py-1 bg-white/85 border border-slate-200 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-red-50/50 disabled:text-red-400 disabled:border-red-100">
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+                section.innerHTML = html;
+                container.appendChild(section);
+            });
+        }
+
+        function showToast(message, colorClass) {
+            const toast = document.getElementById('toast');
+            toast.className = `mb-4 p-3 rounded-lg text-sm font-medium text-center transition-all shadow-sm ${colorClass}`;
+            toast.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 4000);
+        }
+    </script>
+
+</body>
+</html>

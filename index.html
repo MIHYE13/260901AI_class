@@ -1214,9 +1214,16 @@
             { dateKey: '2026-11-30', period: 4, classId: '6-4' }
         ];
 
-        /** 비워 둘 슬롯 (로드·자동편성 시 삭제·재배정 제외) */
+        /** 비워 둘 슬롯 (자동편성 시 삭제·재배정 제외, 수동 편성은 허용) */
         const CLEARED_SLOTS = [
             { dateKey: '2026-10-26', periods: [1, 4] }
+        ];
+
+        const SCHEDULE_ONE_TIME_MIGRATION_IDS = [
+            'oct29-swap',
+            'dec4-nov30',
+            'initial-fixed-assignments',
+            'cleared-1026'
         ];
 
         function isClearedSlot(dateKey, period) {
@@ -1263,6 +1270,48 @@
             });
             if (changed) markScheduleDirty();
             return changed;
+        }
+
+        let appliedScheduleMigrations = [];
+
+        function hasScheduleMigration(id) {
+            return appliedScheduleMigrations.includes(id);
+        }
+
+        function markScheduleMigration(id) {
+            if (!hasScheduleMigration(id)) appliedScheduleMigrations.push(id);
+        }
+
+        /** 저장된 편성표 로드 시 1회만 실행 — 매 로드마다 고정·비움 슬롯을 덮어쓰지 않음 */
+        function ensureScheduleMigrationsOnLoad() {
+            let changed = false;
+            const legacy = appliedScheduleMigrations.length === 0;
+
+            if (!hasScheduleMigration('oct29-swap')) {
+                if (migrateOctober29Swap()) changed = true;
+                markScheduleMigration('oct29-swap');
+            }
+            if (!hasScheduleMigration('dec4-nov30')) {
+                if (migrateDec4SixGradeToNov30()) changed = true;
+                markScheduleMigration('dec4-nov30');
+            }
+
+            if (legacy) {
+                markScheduleMigration('initial-fixed-assignments');
+                markScheduleMigration('cleared-1026');
+            } else {
+                if (!hasScheduleMigration('initial-fixed-assignments')) {
+                    if (applyFixedAssignments({ onlyIfEmpty: false })) changed = true;
+                    markScheduleMigration('initial-fixed-assignments');
+                }
+                if (!hasScheduleMigration('cleared-1026')) {
+                    if (applyClearedSlots()) changed = true;
+                    markScheduleMigration('cleared-1026');
+                }
+            }
+
+            if (applyInvalidSchoolTimetableSlotCleanup()) changed = true;
+            return changed || legacy;
         }
 
         function isFixedAssignment(dateKey, period, classId) {
@@ -2925,6 +2974,7 @@
                 gradeDayRuleStrict,
                 instructor1Schedules: JSON.parse(JSON.stringify(instructor1Schedules)),
                 selectedWeekStart,
+                appliedScheduleMigrations: [...appliedScheduleMigrations],
                 savedAt: new Date().toISOString()
             };
         }
@@ -2947,6 +2997,9 @@
                 instructor1Schedules = JSON.parse(JSON.stringify(schoolCalendarBase));
             }
             if (data.selectedWeekStart) selectedWeekStart = data.selectedWeekStart;
+            appliedScheduleMigrations = Array.isArray(data.appliedScheduleMigrations)
+                ? [...data.appliedScheduleMigrations]
+                : [];
             lastSavedAt = data.savedAt || null;
             scheduleDirty = false;
             reconcileAllClassSessionNumbers();
@@ -5842,6 +5895,7 @@
             } else {
                 showToast(`편성 ${formatProgressCount(totalAssigned, REQUIRED_TOTAL_HOURS)} · ${incomplete.length}개 학급 미완${emptySlotErrors.length ? ` · 빈 슬롯 ${emptySlotErrors.length}건` : ''}`, 'warning');
             }
+            appliedScheduleMigrations = [...SCHEDULE_ONE_TIME_MIGRATION_IDS];
             markScheduleDirty();
             renderGradeDayRulesSummary();
         }
@@ -6181,29 +6235,26 @@
 
             if (!loaded) {
                 generateClassSchedule();
+                appliedScheduleMigrations = [...SCHEDULE_ONE_TIME_MIGRATION_IDS];
+                if (!selectedWeekStart) selectedWeekStart = getWeekKey('2026-11-05');
+                persistScheduleData({ silent: true, showSuccessToast: false });
             } else {
-                if (migrateOctober29Swap()) markScheduleDirty();
-                if (migrateDec4SixGradeToNov30()) markScheduleDirty();
-                if (applyInvalidSchoolTimetableSlotCleanup()) markScheduleDirty();
-                applyFixedAssignments({ onlyIfEmpty: false });
-                if (applyClearedSlots()) markScheduleDirty();
+                const migrationChanged = ensureScheduleMigrationsOnLoad();
                 reconcileAllClassSessionNumbers();
-                initWeekFilter();
-                const filter = document.getElementById('weekFilter');
-                if (filter && selectedWeekStart) filter.value = selectedWeekStart;
-                refreshAllScheduleViews(false);
                 if (loadSource === 'local') {
                     showToast('저장된 편성표를 불러왔습니다.', 'info');
                 }
                 calculateSummaryStats();
                 renderAnalysisMonthCards();
+                if (migrationChanged) {
+                    persistScheduleData({ silent: true, showSuccessToast: false });
+                }
             }
-            selectedWeekStart = getWeekKey('2026-11-05');
+            if (!selectedWeekStart) selectedWeekStart = getWeekKey('2026-11-05');
             initWeekFilter();
             const weekFilter = document.getElementById('weekFilter');
             if (weekFilter) weekFilter.value = selectedWeekStart;
             refreshAllScheduleViews(false);
-            persistScheduleData({ silent: true, showSuccessToast: false });
             const nov5 = plannedTimetable['2026-11-05'];
             const nov30 = plannedTimetable['2026-11-30'];
             const nov24 = plannedTimetable['2026-11-24'];

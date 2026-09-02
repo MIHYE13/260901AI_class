@@ -47,20 +47,15 @@
 2. **Authentication → Sign-in method → 익명** 로그인 활성화
 3. **Firestore Database** 생성
 4. 웹앱 SDK 설정 JSON을 `FIREBASE_CONFIG` 환경변수에 등록
-5. **Firestore 보안 규칙** (모든 사용자가 동일 편성표를 읽고 쓸 수 있도록):
+5. **Firestore 보안 규칙** — 프로젝트 루트 `firestore.rules` 내용을 Firebase Console → Firestore → **규칙**에 붙여넣고 **게시**:
 
 ```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /artifacts/{appId}/public/data/{docId} {
-      allow read, write: if request.auth != null;
-    }
-  }
+match /schedules/{docId} {
+  allow read, write: if request.auth != null;
 }
 ```
 
-> `FIREBASE_APP_ID_NAME` 환경변수와 Firestore 경로의 `{appId}`가 일치해야 합니다. (기본값: `instructor1-schedule-2026-v1`)
+> Authentication **익명 로그인**이 활성화되어 있어야 `request.auth != null` 조건을 통과합니다.
 
 ## 다중 사용자 공유
 

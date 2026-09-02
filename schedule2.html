@@ -2992,8 +2992,14 @@
 
             if (enabled) {
                 banner.classList.remove('hidden');
-                inner.className = 'rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900';
-                inner.innerHTML = '<i class="fa-solid fa-cloud-arrow-up mr-2"></i><strong>공유 동기화 활성</strong> — Firebase에 저장된 편성표가 모든 사용자에게 동일하게 표시됩니다. 수정 후 「저장」을 누르면 즉시 공유됩니다.';
+                const writeHint = window.CloudBridge?.getCloudConfigHint?.();
+                if (writeHint && writeHint.includes('Firestore')) {
+                    inner.className = 'rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900';
+                    inner.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>Firebase 연결됨 · 저장 실패</strong> — ${writeHint}<br><span class="text-xs font-normal mt-1 inline-block">Firebase Console → Firestore → 규칙 → <code class="bg-white/80 px-1 rounded">schedules</code> 컬렉션 read/write 허용 후 게시하세요. (<a href="https://console.firebase.google.com" target="_blank" rel="noopener" class="underline">Console 열기</a>)</span>`;
+                } else {
+                    inner.className = 'rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900';
+                    inner.innerHTML = '<i class="fa-solid fa-cloud-arrow-up mr-2"></i><strong>공유 동기화 활성</strong> — Firebase에 저장된 편성표가 모든 사용자에게 동일하게 표시됩니다. 수정 후 「저장」을 누르면 즉시 공유됩니다.';
+                }
             } else if (configured === false) {
                 banner.classList.remove('hidden');
                 inner.className = 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900';
@@ -3256,12 +3262,17 @@
                         localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(payload));
                     }
                     if (forceCloud) {
-                        const cloudOk = await window.CloudBridge.saveToCloud(payload, { silent: !showSuccessToast });
+                        const cloudOk = await window.CloudBridge.saveToCloud(payload, {
+                            silent: !showSuccessToast,
+                            force: true,
+                            showSuccessToast: false
+                        });
                         if (!cloudOk) {
                             scheduleDirty = true;
                             updateScheduleSaveStatus();
                             if (!silent) {
-                                showToast('클라우드 저장 실패 — 다른 사용자에게 반영되지 않았습니다.', 'error');
+                                const detail = window.CloudBridge.getLastCloudSaveError?.() || '알 수 없는 오류';
+                                showToast(`클라우드 저장 실패: ${detail}`, 'error');
                             }
                             return false;
                         }

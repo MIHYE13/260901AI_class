@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 강사1 편성표 공유 저장 (권장 경로)
+    match /schedules/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // 이전 버전 경로 (호환)
+    match /artifacts/{appId}/public/data/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

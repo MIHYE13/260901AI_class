@@ -13,6 +13,7 @@ let cloudSaveTimer = null;
 let pendingCloudPayload = null;
 let appId = 'instructor1-schedule-2026-v1';
 let geminiAvailable = false;
+let cloudConfigHint = null;
 let unsubscribeSnapshot = null;
 let lastAppliedRemoteSavedAt = 0;
 let cloudSyncStarted = false;
@@ -120,11 +121,12 @@ export async function initCloudIntegration() {
     const config = await fetchRuntimeConfig();
     geminiAvailable = Boolean(config.geminiAvailable);
     appId = config.appId || appId;
+    cloudConfigHint = config.configHint || null;
     isCloudConfiguredFlag = Boolean(config.configured && config.firebase);
     updateCloudUI({ configured: config.configured, geminiAvailable });
 
     if (!config.configured || !config.firebase) {
-      return { ok: false, geminiAvailable, configured: false };
+      return { ok: false, geminiAvailable, configured: false, configHint: cloudConfigHint };
     }
 
     const app = initializeApp(config.firebase);
@@ -133,17 +135,24 @@ export async function initCloudIntegration() {
     await signInAnonymously(auth);
     isCloudMode = true;
     updateCloudUI({ connected: true, geminiAvailable });
-    return { ok: true, geminiAvailable, configured: true };
+    return { ok: true, geminiAvailable, configured: true, configHint: null };
   } catch (error) {
     console.warn('Cloud integration init failed:', error);
     isCloudConfiguredFlag = false;
+    cloudConfigHint = window.location.protocol === 'file:'
+      ? '로컬 HTML 파일에서는 Firebase API(/api/config)를 사용할 수 없습니다. Vercel 배포 URL로 접속하세요.'
+      : `Firebase 연결 실패: ${error.message}`;
     updateCloudUI({ configured: false, geminiAvailable });
-    return { ok: false, geminiAvailable, configured: false };
+    return { ok: false, geminiAvailable, configured: false, configHint: cloudConfigHint };
   }
 }
 
 export function isCloudConfigured() {
   return isCloudConfiguredFlag;
+}
+
+export function getCloudConfigHint() {
+  return cloudConfigHint;
 }
 
 export function isCloudEnabled() {
@@ -248,5 +257,6 @@ window.CloudBridge = {
   askGemini,
   isCloudEnabled,
   isCloudConfigured,
+  getCloudConfigHint,
   isGeminiAvailable: () => geminiAvailable,
 };

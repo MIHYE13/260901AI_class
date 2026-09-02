@@ -2982,6 +2982,7 @@
             const inner = banner.firstElementChild;
             const enabled = window.CloudBridge?.isCloudEnabled?.();
             const configured = window.CloudBridge?.isCloudConfigured?.();
+            const hint = window.CloudBridge?.getCloudConfigHint?.() || '';
 
             if (enabled) {
                 banner.classList.remove('hidden');
@@ -2990,7 +2991,10 @@
             } else if (configured === false) {
                 banner.classList.remove('hidden');
                 inner.className = 'rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900';
-                inner.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>공유 저장 미설정</strong> — Firebase가 연결되지 않아 브라우저마다 다른 편성표가 보일 수 있습니다. Vercel 환경변수에 <code class="text-xs bg-white/80 px-1 rounded">FIREBASE_CONFIG</code>를 등록하세요.';
+                const detail = hint
+                    ? `<br><span class="text-xs font-normal mt-1 inline-block">${hint}</span>`
+                    : '';
+                inner.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>공유 저장 미설정</strong> — Firebase가 연결되지 않아 브라우저마다 다른 편성표가 보일 수 있습니다.${detail}<br><span class="text-xs font-normal mt-1 inline-block">① Firebase Console → 웹앱 SDK JSON 복사 → ② Vercel → Settings → Environment Variables → <code class="bg-white/80 px-1 rounded">FIREBASE_CONFIG</code> 한 줄 등록 → ③ Deployments → Redeploy → ④ <a href="/api/config" target="_blank" rel="noopener" class="underline">/api/config</a>에서 <code class="bg-white/80 px-1 rounded">"configured":true</code> 확인</span>`;
             } else {
                 banner.classList.add('hidden');
             }

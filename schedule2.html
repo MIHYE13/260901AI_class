@@ -4374,6 +4374,20 @@
             });
         }
 
+        /** 드래그 세션 종료 — drop 후 DOM 재렌더 시 dragend가 누락되어도 클릭 차단이 풀리도록 보장 */
+        function endWeekGridDragSession(options = {}) {
+            const { suppressClick = false } = options;
+            document.querySelectorAll('.week-grid-cell.is-dragging').forEach(el => {
+                el.classList.remove('is-dragging');
+            });
+            clearWeekGridDropHighlights();
+            weekGridDragPayload = null;
+            if (suppressClick) {
+                weekGridSuppressClick = true;
+                setTimeout(() => { weekGridSuppressClick = false; }, 50);
+            }
+        }
+
         function bindCellPickerOutsideClose() {
             if (cellPickerOutsideHandler) {
                 document.removeEventListener('click', cellPickerOutsideHandler, true);
@@ -4444,11 +4458,7 @@
         }
 
         function onWeekGridDragEnd() {
-            document.querySelectorAll('.week-grid-cell.is-dragging').forEach(el => el.classList.remove('is-dragging'));
-            clearWeekGridDropHighlights();
-            weekGridDragPayload = null;
-            weekGridSuppressClick = true;
-            setTimeout(() => { weekGridSuppressClick = false; }, 0);
+            endWeekGridDragSession({ suppressClick: true });
         }
 
         function onWeekGridDragOver(e) {
@@ -4470,30 +4480,34 @@
 
         function onWeekGridDrop(e) {
             e.preventDefault();
-            const cell = findWeekGridCell(e.target);
-            if (!weekGridDragPayload || !cell || !isWeekGridDropTarget(cell)) return;
+            try {
+                const cell = findWeekGridCell(e.target);
+                if (!weekGridDragPayload || !cell || !isWeekGridDropTarget(cell)) return;
 
-            clearWeekGridDropHighlights();
-            weekGridSuppressClick = true;
+                clearWeekGridDropHighlights();
 
-            const { fromDateKey, fromPeriod, classId } = weekGridDragPayload;
-            const result = moveAssignmentBetweenSlots(fromDateKey, fromPeriod, cell.dateKey, cell.period);
+                const { fromDateKey, fromPeriod, classId } = weekGridDragPayload;
+                const result = moveAssignmentBetweenSlots(fromDateKey, fromPeriod, cell.dateKey, cell.period);
 
-            if (result.noop) return;
+                if (result.noop) return;
 
-            if (!result.ok) {
-                showToast(result.message, 'error');
-                return;
+                if (!result.ok) {
+                    showToast(result.message, 'error');
+                    return;
+                }
+
+                markScheduleDirty();
+                const label = result.cls?.label || classId;
+                const slotLabel = `${cell.dateKey.slice(5)} ${cell.period}교시`;
+                showToast(
+                    result.swapped ? `${label} ↔ ${slotLabel} 교환` : `${label} → ${slotLabel} 이동`,
+                    'success'
+                );
+                applyScheduleMutation({ affectedClassIds: result.affectedClassIds || [classId] });
+            } finally {
+                // applyScheduleMutation이 그리드를 재렌더하면 dragend가 누락될 수 있음
+                endWeekGridDragSession({ suppressClick: true });
             }
-
-            markScheduleDirty();
-            const label = result.cls?.label || classId;
-            const slotLabel = `${cell.dateKey.slice(5)} ${cell.period}교시`;
-            showToast(
-                result.swapped ? `${label} ↔ ${slotLabel} 교환` : `${label} → ${slotLabel} 이동`,
-                'success'
-            );
-            applyScheduleMutation({ affectedClassIds: result.affectedClassIds || [classId] });
         }
 
         /** 하위 호환 (인라인 onclick 제거 후에도 외부 호출 가능) */

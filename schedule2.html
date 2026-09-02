@@ -40,6 +40,14 @@
         .schedule-guide summary::-webkit-details-marker { display: none; }
         .schedule-guide[open] .guide-chevron { transform: rotate(180deg); }
         .guide-chevron { transition: transform 0.2s ease; }
+        .grade-day-rules-panel summary { list-style: none; cursor: pointer; }
+        .grade-day-rules-panel summary::-webkit-details-marker { display: none; }
+        .grade-day-rules-panel[open] .grade-rules-chevron { transform: rotate(180deg); }
+        .grade-rules-chevron { transition: transform 0.2s ease; }
+        .grade-rule-dow-btn { min-width: 2.25rem; }
+        .grade-rule-dow-btn.is-active { background: #4f46e5; color: #fff; border-color: #4338ca; }
+        .grade-rule-dow-btn:not(.is-active) { background: #fff; color: #64748b; border-color: #e2e8f0; }
+        .grade-rule-dow-btn:not(.is-active):hover { border-color: #a5b4fc; color: #4338ca; }
         #scheduleCellPicker {
             min-width: 280px;
             max-width: 320px;
@@ -297,6 +305,39 @@
         .fixed-slot-cell-pe { background: rgba(239, 246, 255, 0.9); }
         .fixed-slot-entry { line-height: 1.35; padding: 1px 0; }
         .fixed-slot-entry + .fixed-slot-entry { border-top: 1px dashed #e2e8f0; margin-top: 3px; padding-top: 3px; }
+
+        /* A4 전체 시간표 출력 */
+        #schedulePrintArea { display: none; }
+        body.is-printing-full-schedule #schedulePrintArea { display: block; }
+        .print-sheet { color: #0f172a; font-family: 'Pretendard', sans-serif; }
+        .print-sheet-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #312e81; padding-bottom: 4px; margin-bottom: 4px; }
+        .print-sheet-title { font-size: 13px; font-weight: 800; color: #312e81; }
+        .print-sheet-meta { font-size: 7px; color: #475569; text-align: right; line-height: 1.35; }
+        .print-full-grid { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 6.5px; line-height: 1.15; }
+        .print-full-grid th, .print-full-grid td { border: 0.5px solid #94a3b8; padding: 1px 2px; vertical-align: middle; text-align: center; overflow: hidden; }
+        .print-full-grid thead th { background: #e0e7ff; font-weight: 800; font-size: 6.5px; }
+        .print-full-grid .print-date-col { width: 9%; text-align: left; font-weight: 700; white-space: nowrap; background: #f8fafc; }
+        .print-full-grid .print-period-col { width: 7.6%; }
+        .print-full-grid tr.print-month-row td { background: #eef2ff; font-weight: 800; font-size: 7px; text-align: left; padding: 2px 4px; border-color: #818cf8; }
+        .print-full-grid td.has-assignment { background: #eef2ff; font-weight: 800; color: #312e81; }
+        .print-full-grid td.is-unavailable { background: #f1f5f9; color: #cbd5e1; }
+        .print-class-summary { margin-top: 4px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px 4px; font-size: 6px; line-height: 1.2; }
+        .print-class-summary-item { border: 0.5px solid #cbd5e1; padding: 1px 3px; border-radius: 2px; background: #fff; }
+        .print-class-summary-item.is-complete { background: #ecfdf5; border-color: #6ee7b7; }
+        .print-class-summary-item.is-incomplete { background: #fff7ed; border-color: #fdba74; }
+
+        @media print {
+            @page { size: A4 landscape; margin: 5mm; }
+            body.is-printing-full-schedule > *:not(#schedulePrintArea) { display: none !important; }
+            body.is-printing-full-schedule #schedulePrintArea {
+                display: block !important;
+                position: static;
+                width: 100%;
+            }
+            .print-sheet { width: 100%; }
+            .print-full-grid { font-size: 6px; }
+            .print-full-grid th, .print-full-grid td { padding: 0.5px 1px; }
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
@@ -647,13 +688,13 @@
                 </div>
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                     <p class="text-xs font-semibold text-slate-400">운영 한도 (강사1)</p>
-                    <h3 class="text-2xl font-extrabold text-amber-600 mt-1" id="capacityHoursDisplay">204</h3>
-                    <p class="text-[11px] text-slate-500 mt-1">9/18~12/31 · 9~12월 주당 14h</p>
+                    <h3 class="text-2xl font-extrabold text-amber-600 mt-1" id="capacityHoursDisplay">240</h3>
+                    <p class="text-[11px] text-slate-500 mt-1">강사1 학기 최대 · 필수 204 + 추가 36</p>
                 </div>
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                     <p class="text-xs font-semibold text-slate-400">배정 진행 (운영한도)</p>
                     <h3 class="text-2xl font-extrabold text-slate-800 mt-1" id="scheduleProgress">0%</h3>
-                    <p class="text-[11px] text-slate-500 mt-1" id="scheduleProgressDetail">0 / 204</p>
+                    <p class="text-[11px] text-slate-500 mt-1" id="scheduleProgressDetail">0 / 240</p>
                 </div>
             </div>
 
@@ -710,7 +751,7 @@
                         </div>
                         <div class="p-3 rounded-lg bg-white border border-indigo-100">
                             <div class="font-bold text-indigo-800 mb-1.5 flex items-center gap-2"><span class="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center">3</span> 저장·백업</div>
-                            <p class="text-slate-600 leading-relaxed">변경은 <strong>브라우저에 자동 저장</strong>됩니다. JSON <strong>내보내기</strong>로 백업하고, 메모는 <strong>상세 수정</strong>에서 입력하세요.</p>
+                            <p class="text-slate-600 leading-relaxed">변경은 <strong>브라우저에 자동 저장</strong>됩니다. <strong>학년별 요일 배치 규칙</strong>으로 자동 편성을 조정할 수 있습니다.</p>
                         </div>
                     </div>
                 </details>
@@ -749,6 +790,9 @@
                             <button onclick="triggerImportScheduleFile()" class="px-3 py-2 hover:bg-white rounded-lg text-sm text-slate-700 transition flex items-center gap-1.5" title="JSON 불러오기">
                                 <i class="fa-solid fa-file-import"></i><span class="hidden sm:inline">불러오기</span>
                             </button>
+                            <button onclick="printFullSchedule()" class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-semibold transition flex items-center gap-1.5" title="학기 전체 시간표 A4 1장 출력">
+                                <i class="fa-solid fa-print"></i><span class="hidden sm:inline">A4 전체 출력</span>
+                            </button>
                         </div>
                         <input type="file" id="scheduleImportInput" accept=".json,application/json" class="hidden" onchange="importScheduleFromFile(event)">
                     </div>
@@ -760,6 +804,46 @@
                 </div>
 
                 <div id="scheduleFixedDayList" class="hidden flex flex-wrap items-center gap-2 text-[10px] p-2 rounded-lg bg-violet-50 border border-violet-100"></div>
+
+                <details id="gradeDayRulesPanel" class="grade-day-rules-panel rounded-xl border border-teal-200 bg-teal-50/40 overflow-hidden">
+                    <summary class="flex items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-teal-900 select-none">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-teal-600"></i> 학년별 요일 배치 규칙
+                            <span id="gradeDayRulesSummaryBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white text-teal-700 border border-teal-200"></span>
+                        </span>
+                        <i class="fa-solid fa-chevron-down grade-rules-chevron text-teal-400 text-xs"></i>
+                    </summary>
+                    <div class="px-4 pb-4 space-y-4 border-t border-teal-100 bg-white/60">
+                        <p class="text-xs text-teal-800 pt-3 leading-relaxed">
+                            학년마다 <strong>집중 배치할 요일</strong>을 지정하면 자동 편성·빈 칸 채움 시 해당 요일을 우선합니다.
+                            예: <strong>1학년 → 월·수</strong> 선택 후 「규칙 적용 · 자동 재편성」
+                        </p>
+                        <div id="gradeDayRulesEditor" class="space-y-2"></div>
+                        <div class="flex flex-wrap items-center gap-3 text-xs">
+                            <label class="inline-flex items-center gap-2 font-semibold text-slate-700 cursor-pointer">
+                                <input type="checkbox" id="gradeDayRuleStrict" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                                엄격 모드 (지정 요일만 자동 배치)
+                            </label>
+                            <span class="text-slate-400">|</span>
+                            <span class="text-slate-500">빠른 설정:</span>
+                            <button type="button" onclick="applyGradeDayRulePreset('12-monfri')" class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium">1~2학년 월·금</button>
+                            <button type="button" onclick="applyGradeDayRulePreset('1-monwed')" class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium">1학년 월·수</button>
+                            <button type="button" onclick="applyGradeDayRulePreset('36-tuweth')" class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium">3~6학년 화·수·목</button>
+                        </div>
+                        <div class="flex flex-wrap gap-2 pt-1">
+                            <button type="button" onclick="saveGradeDayRulesFromUI()" class="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-sm transition shadow-sm">
+                                <i class="fa-solid fa-floppy-disk mr-1"></i> 규칙 저장
+                            </button>
+                            <button type="button" onclick="applyGradeDayRulesAndRegenerate()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition shadow-sm">
+                                <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> 규칙 적용 · 자동 재편성
+                            </button>
+                            <button type="button" onclick="resetGradeDayRulesToDefault()" class="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-sm border border-slate-200 transition">
+                                기본값 복원
+                            </button>
+                        </div>
+                        <div id="gradeDayRulesActiveSummary" class="text-[11px] text-teal-800 bg-teal-50 border border-teal-100 rounded-lg px-3 py-2"></div>
+                    </div>
+                </details>
 
                 <div id="weeklyGridContainer" class="overflow-x-auto custom-scrollbar">
                     <!-- 주차별 요일×교시 그리드 -->
@@ -981,6 +1065,9 @@
     <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 mt-10">
         <p>2026 하반기 강사 1 일정 분석 & 학년 시간표 조율 도구 · 교과전담 연동 · 주차별 연속 편성</p>
     </footer>
+
+    <!-- A4 1장 전체 시간표 인쇄 전용 -->
+    <div id="schedulePrintArea" aria-hidden="true"></div>
 
     <script>
         // 학교 행사·부분교시 기준 데이터 (강사1 일정)
@@ -1207,7 +1294,7 @@
 
         const TOTAL_SESSIONS = SCHOOL_CLASSES.reduce((sum, c) => sum + c.sessions, 0);
         const REQUIRED_TOTAL_HOURS = TOTAL_SESSIONS; // 1~2학년 6×6 + 3~6학년 12×14 = 204
-        const TOTAL_CAPACITY_HOURS = REQUIRED_TOTAL_HOURS; // 학기 운영 시수 한도 (자동편성·규칙 검사용)
+        const TOTAL_CAPACITY_HOURS = 240; // 강사1 학기 운영 한도 (필수 204 + 추가 시수 여유)
 
         function getMaxWeeklyHoursForDays(weekDays) {
             let max = MAX_WEEKLY_HOURS_DEFAULT;
@@ -1651,6 +1738,157 @@
 
         let classPreferredSlot = {}; // classId -> { dow } 주간 동일 요일 배치용
 
+        const GRADE_RULE_WEEKDAYS = [1, 2, 3, 4, 5];
+
+        function getDefaultGradeDayRules() {
+            return {
+                1: [1, 5],
+                2: [1, 5],
+                3: [2, 3, 4],
+                4: [2, 3, 4],
+                5: [2, 3, 4],
+                6: [2, 3, 4]
+            };
+        }
+
+        let gradeDayPlacementRules = getDefaultGradeDayRules();
+        let gradeDayRuleStrict = false;
+
+        function normalizeGradeDayRules(raw) {
+            const base = getDefaultGradeDayRules();
+            const normalized = { ...base };
+            if (!raw || typeof raw !== 'object') return normalized;
+            for (let grade = 1; grade <= 6; grade++) {
+                const dows = raw[grade] || raw[String(grade)];
+                if (Array.isArray(dows)) {
+                    normalized[grade] = [...new Set(dows.map(d => parseInt(d, 10)).filter(d => GRADE_RULE_WEEKDAYS.includes(d)))].sort((a, b) => a - b);
+                }
+            }
+            return normalized;
+        }
+
+        function getGradePreferredDows(grade) {
+            const dows = gradeDayPlacementRules[grade];
+            if (Array.isArray(dows) && dows.length > 0) return dows;
+            if (grade <= 2) return [...GRADE12_PREFERRED_DOWS];
+            return [...GRADE36_PREFERRED_DOWS];
+        }
+
+        function formatGradeDayRuleLabel(grade) {
+            const dows = getGradePreferredDows(grade);
+            if (!dows.length) return '요일 미지정';
+            return dows.map(d => WEEKDAY_NAMES[d]).join('·');
+        }
+
+        function renderGradeDayRulesPanel() {
+            const editor = document.getElementById('gradeDayRulesEditor');
+            if (!editor) return;
+
+            editor.innerHTML = GRADE_RULE_WEEKDAYS.length
+                ? [1, 2, 3, 4, 5, 6].map(grade => {
+                    const classCount = SCHOOL_CLASSES.filter(c => c.grade === grade).length;
+                    const selected = new Set(getGradePreferredDows(grade));
+                    const dowsHtml = GRADE_RULE_WEEKDAYS.map(dow => `
+                        <button type="button"
+                            class="grade-rule-dow-btn px-2 py-1 rounded-md border text-[11px] font-bold transition ${selected.has(dow) ? 'is-active' : ''}"
+                            data-grade="${grade}" data-dow="${dow}"
+                            onclick="toggleGradeDayRuleDow(${grade}, ${dow})"
+                            title="${grade}학년 ${WEEKDAY_NAMES[dow]}요일 ${selected.has(dow) ? '해제' : '선택'}">
+                            ${WEEKDAY_NAMES[dow]}
+                        </button>
+                    `).join('');
+                    return `
+                        <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-lg border border-slate-200 bg-white">
+                            <span class="w-16 shrink-0 text-xs font-bold text-slate-800">${grade}학년</span>
+                            <div class="flex flex-wrap gap-1">${dowsHtml}</div>
+                            <span class="text-[10px] text-slate-400 ml-auto">${classCount}학급 · ${formatGradeDayRuleLabel(grade)}</span>
+                        </div>
+                    `;
+                }).join('')
+                : '';
+
+            const strictEl = document.getElementById('gradeDayRuleStrict');
+            if (strictEl) strictEl.checked = gradeDayRuleStrict;
+            renderGradeDayRulesSummary();
+        }
+
+        function renderGradeDayRulesSummary() {
+            const badge = document.getElementById('gradeDayRulesSummaryBadge');
+            const summary = document.getElementById('gradeDayRulesActiveSummary');
+            const activeGrades = [1, 2, 3, 4, 5, 6]
+                .map(g => `${g}학년 ${formatGradeDayRuleLabel(g)}`)
+                .join(' · ');
+            const modeLabel = gradeDayRuleStrict ? '엄격' : '집중 우선';
+            if (badge) badge.textContent = modeLabel;
+            if (summary) {
+                summary.innerHTML = `<strong>현재 규칙</strong> (${modeLabel}) — ${activeGrades}`;
+            }
+        }
+
+        function toggleGradeDayRuleDow(grade, dow) {
+            const current = new Set(getGradePreferredDows(grade));
+            if (current.has(dow)) {
+                if (current.size <= 1) {
+                    showToast(`${grade}학년은 최소 1개 요일이 필요합니다.`, 'warning');
+                    return;
+                }
+                current.delete(dow);
+            } else {
+                current.add(dow);
+            }
+            gradeDayPlacementRules[grade] = [...current].sort((a, b) => a - b);
+            renderGradeDayRulesPanel();
+            markScheduleDirty();
+        }
+
+        function syncGradeDayRulesFromUI() {
+            const strictEl = document.getElementById('gradeDayRuleStrict');
+            if (strictEl) gradeDayRuleStrict = strictEl.checked;
+        }
+
+        function saveGradeDayRulesFromUI() {
+            syncGradeDayRulesFromUI();
+            persistScheduleData({ silent: false, showSuccessToast: true });
+            renderGradeDayRulesSummary();
+            showToast('학년별 요일 배치 규칙을 저장했습니다.', 'success');
+        }
+
+        function applyGradeDayRulesAndRegenerate() {
+            syncGradeDayRulesFromUI();
+            if ([1, 2, 3, 4, 5, 6].some(g => getGradePreferredDows(g).length === 0)) {
+                showToast('각 학년마다 최소 1개 요일을 선택해 주세요.', 'warning');
+                return;
+            }
+            persistScheduleData({ silent: true, showSuccessToast: false });
+            generateClassSchedule();
+            renderGradeDayRulesSummary();
+        }
+
+        function resetGradeDayRulesToDefault() {
+            gradeDayPlacementRules = getDefaultGradeDayRules();
+            gradeDayRuleStrict = false;
+            renderGradeDayRulesPanel();
+            markScheduleDirty();
+            showToast('학년별 요일 규칙을 기본값(1~2학년 월·금, 3~6학년 화·수·목)으로 복원했습니다.', 'info');
+        }
+
+        function applyGradeDayRulePreset(presetId) {
+            const defaults = getDefaultGradeDayRules();
+            if (presetId === '12-monfri') {
+                gradeDayPlacementRules[1] = [1, 5];
+                gradeDayPlacementRules[2] = [1, 5];
+            } else if (presetId === '1-monwed') {
+                gradeDayPlacementRules[1] = [1, 3];
+            } else if (presetId === '36-tuweth') {
+                [3, 4, 5, 6].forEach(g => { gradeDayPlacementRules[g] = [2, 3, 4]; });
+            } else {
+                gradeDayPlacementRules = defaults;
+            }
+            renderGradeDayRulesPanel();
+            markScheduleDirty();
+            showToast('프리셋을 적용했습니다. 「규칙 적용 · 자동 재편성」으로 편성표에 반영하세요.', 'info');
+        }
+
         /** 월요일 1교시: 자동편성에서만 제외 (수동 배치는 허용) */
         function isMondayFirstPeriodAutoExcluded(dow, period) {
             return dow === MONDAY_DOW && period === 1;
@@ -1659,23 +1897,25 @@
 
         /** 학년별 권장 요일 가산/감점 (낮을수록 우선) */
         function getGradeDayPreferenceScore(cls, dow) {
+            const preferred = getGradePreferredDows(cls.grade);
+            if (preferred.includes(dow)) return -130;
+
+            const softPenalty = gradeDayRuleStrict ? 520 : 90;
+            const neutralPenalty = gradeDayRuleStrict ? 480 : 60;
+
             if (cls.grade <= 2) {
-                if (GRADE12_PREFERRED_DOWS.includes(dow)) return -130;
-                if (GRADE36_PREFERRED_DOWS.includes(dow)) return 90;
-                return 60;
+                if (GRADE36_PREFERRED_DOWS.includes(dow)) return softPenalty + 20;
+                return neutralPenalty;
             }
             if (cls.grade >= 3 && cls.grade <= 6) {
-                if (GRADE36_PREFERRED_DOWS.includes(dow)) return -130;
-                if (GRADE12_PREFERRED_DOWS.includes(dow)) return 110;
-                return 50;
+                if (GRADE12_PREFERRED_DOWS.includes(dow)) return softPenalty + 20;
+                return neutralPenalty;
             }
             return 0;
         }
 
         function isGradeOnPreferredDay(cls, dow) {
-            if (cls.grade <= 2) return GRADE12_PREFERRED_DOWS.includes(dow);
-            if (cls.grade >= 3 && cls.grade <= 6) return GRADE36_PREFERRED_DOWS.includes(dow);
-            return true;
+            return getGradePreferredDows(cls.grade).includes(dow);
         }
 
         /** 학급별 배치 가능 교시: 1~4교시 + 5·6학년 월·화·목·금 6교시 */
@@ -2158,7 +2398,11 @@
             const d = new Date(dateKey + 'T12:00:00');
             const dow = d.getDay();
             if ((cls.grade === 3 || cls.grade === 6) && !isGrade36PlacementDate(dateKey)) return false;
-            return isInstructorAvailable(dateKey);
+            if (!isInstructorAvailable(dateKey)) return false;
+            if (gradeDayRuleStrict && dow >= 1 && dow <= 5 && !getGradePreferredDows(cls.grade).includes(dow)) {
+                return false;
+            }
+            return true;
         }
 
         function findValidPeriod(cls, dateKey, preferredPeriod = null) {
@@ -2183,7 +2427,7 @@
         }
 
         function fillExtendedOnlyInstructorDaysInWeek(week, classState) {
-            if (getTotalAssignedHours() >= REQUIRED_TOTAL_HOURS) return;
+            if (getTotalAssignedHours() >= TOTAL_CAPACITY_HOURS) return;
             const onlyExtendedDays = week.days.filter(isExtendedOnlyInstructorDay).sort();
             for (const dateKey of onlyExtendedDays) {
                 if (!isInstructorAvailable(dateKey)) continue;
@@ -2193,7 +2437,7 @@
                 for (const p of allowed) {
                     if (plannedTimetable[dateKey]?.[p]) continue;
                     if (getRemainingWeeklyHours(week.weekStart, week.days) <= 0) break;
-                    if (getTotalAssignedHours() >= REQUIRED_TOTAL_HOURS) break;
+                    if (getTotalAssignedHours() >= TOTAL_CAPACITY_HOURS) break;
                     tryFillExtendedSlot(week, dateKey, p, classState);
                 }
             }
@@ -2524,6 +2768,8 @@
             return {
                 plannedTimetable: JSON.parse(JSON.stringify(plannedTimetable)),
                 classPreferredSlot: JSON.parse(JSON.stringify(classPreferredSlot)),
+                gradeDayPlacementRules: JSON.parse(JSON.stringify(gradeDayPlacementRules)),
+                gradeDayRuleStrict,
                 instructor1Schedules: JSON.parse(JSON.stringify(instructor1Schedules)),
                 selectedWeekStart,
                 savedAt: new Date().toISOString()
@@ -2536,6 +2782,8 @@
             classPreferredSlot = data.classPreferredSlot
                 ? JSON.parse(JSON.stringify(data.classPreferredSlot))
                 : {};
+            gradeDayPlacementRules = normalizeGradeDayRules(data.gradeDayPlacementRules);
+            gradeDayRuleStrict = !!data.gradeDayRuleStrict;
             if (data.instructor1Schedules && typeof data.instructor1Schedules === 'object') {
                 instructor1Schedules = JSON.parse(JSON.stringify(data.instructor1Schedules));
             } else {
@@ -2545,6 +2793,7 @@
             lastSavedAt = data.savedAt || null;
             scheduleDirty = false;
             reconcileAllClassSessionNumbers();
+            renderGradeDayRulesPanel();
             return true;
         }
 
@@ -2603,7 +2852,7 @@
             }).join('\n');
             return [
                 '2026 하반기 강사1 학급 편성표 요약',
-                `배정 시수: ${totalAssigned} / ${REQUIRED_TOTAL_HOURS}`,
+                `배정 시수: ${totalAssigned} / ${TOTAL_CAPACITY_HOURS} (필수 ${REQUIRED_TOTAL_HOURS})`,
                 `선택 주차: ${selectedWeekStart || '없음'}`,
                 '학급별 진행:',
                 unassigned,
@@ -2921,6 +3170,7 @@
             if (tabId === 'classes') {
                 renderClassConfigGrid();
                 renderWeeklySchedule();
+                renderGradeDayRulesPanel();
                 updateScheduleProgress();
                 initWeeklyGridInteractions();
             }
@@ -3653,13 +3903,15 @@
 
         function updateScheduleProgress() {
             const assigned = getTotalAssignedHours();
-            const pct = REQUIRED_TOTAL_HOURS > 0 ? Math.round((assigned / REQUIRED_TOTAL_HOURS) * 100) : 0;
+            const pct = TOTAL_CAPACITY_HOURS > 0 ? Math.min(100, Math.round((assigned / TOTAL_CAPACITY_HOURS) * 100)) : 0;
             const progressEl = document.getElementById('scheduleProgress');
             const detailEl = document.getElementById('scheduleProgressDetail');
+            const capacityEl = document.getElementById('capacityHoursDisplay');
             if (progressEl) progressEl.textContent = `${pct}%`;
             if (detailEl) {
-                detailEl.textContent = `${assigned} / ${REQUIRED_TOTAL_HOURS}`;
+                detailEl.textContent = `${assigned} / ${TOTAL_CAPACITY_HOURS}`;
             }
+            if (capacityEl) capacityEl.textContent = String(TOTAL_CAPACITY_HOURS);
         }
 
         function getWeeksList() {
@@ -3977,6 +4229,11 @@
             const isReplacingSame = existingSameSlot?.classId === classId;
 
             resolveManualWeeklyConflict(classId, dateKey, periodNum, cls, isReplacingSame);
+
+            const addsHour = !isReplacingSame && !existingSameSlot;
+            if (addsHour && getTotalAssignedHours() >= TOTAL_CAPACITY_HOURS) {
+                return { ok: false, message: `학기 운영한도 ${TOTAL_CAPACITY_HOURS}시간 도달` };
+            }
 
             const sessionNum = options.forceSessionNum
                 ?? (isReplacingSame ? existingSameSlot.sessionNum : null)
@@ -4814,6 +5071,120 @@
             initWeeklyGridInteractions();
             updateCopyWeekToNextButton();
             updateClearWeekScheduleButton();
+            renderFullSchedulePrintView();
+        }
+
+        function getSemesterWeekdayDates() {
+            const dates = [];
+            Object.keys(instructor1Schedules).sort().forEach(dateKey => {
+                if (!isInSemester(dateKey)) return;
+                const dow = new Date(dateKey + 'T12:00:00').getDay();
+                if (dow === 0 || dow === 6) return;
+                dates.push(dateKey);
+            });
+            return dates;
+        }
+
+        function formatPrintDateLabel(dateKey) {
+            const dow = new Date(dateKey + 'T12:00:00').getDay();
+            const m = parseInt(dateKey.slice(5, 7), 10);
+            const d = parseInt(dateKey.slice(8, 10), 10);
+            return `${m}/${d}(${WEEKDAY_NAMES[dow]})`;
+        }
+
+        function formatPrintCellAssignment(dateKey, period) {
+            const assigned = plannedTimetable[dateKey]?.[period];
+            if (!assigned?.classId) return '';
+            const cls = getClassById(assigned.classId);
+            const shortLabel = cls ? cls.label.replace('학년 ', '') : assigned.classId;
+            const sn = assigned.sessionNum;
+            return sn ? `${shortLabel}<sup>${sn}</sup>` : shortLabel;
+        }
+
+        function renderFullSchedulePrintView() {
+            const root = document.getElementById('schedulePrintArea');
+            if (!root) return;
+
+            const dates = getSemesterWeekdayDates();
+            const totalAssigned = getTotalAssignedHours();
+            const savedLabel = lastSavedAt ? formatSavedTime(new Date(lastSavedAt)) : '미저장';
+            let lastMonth = null;
+            let bodyRows = '';
+
+            dates.forEach(dateKey => {
+                const month = dateKey.slice(0, 7);
+                if (month !== lastMonth) {
+                    lastMonth = month;
+                    const monthNum = parseInt(dateKey.slice(5, 7), 10);
+                    bodyRows += `<tr class="print-month-row"><td colspan="7">${monthNum}월</td></tr>`;
+                }
+
+                const instOk = isInstructorAvailable(dateKey);
+                const allowed = getAllowedPeriods(dateKey);
+                let cells = '';
+                for (let p = 1; p <= MAX_INSTRUCTOR_PERIOD; p++) {
+                    const assigned = plannedTimetable[dateKey]?.[p];
+                    const canPlace = instOk && allowed.includes(p);
+                    let cellClass = '';
+                    let content = '';
+                    if (assigned) {
+                        cellClass = 'has-assignment';
+                        content = formatPrintCellAssignment(dateKey, p);
+                    } else if (!canPlace) {
+                        cellClass = 'is-unavailable';
+                        content = '—';
+                    }
+                    cells += `<td class="print-period-col ${cellClass}">${content}</td>`;
+                }
+
+                bodyRows += `<tr>
+                    <td class="print-date-col">${formatPrintDateLabel(dateKey)}</td>
+                    ${cells}
+                </tr>`;
+            });
+
+            const classSummary = SCHOOL_CLASSES.map(cls => {
+                const done = countClassSessions(cls.id);
+                const stateClass = done >= cls.sessions ? 'is-complete' : 'is-incomplete';
+                return `<div class="print-class-summary-item ${stateClass}">${cls.label.replace('학년 ', '')} ${done}/${cls.sessions}</div>`;
+            }).join('');
+
+            root.innerHTML = `
+                <div class="print-sheet">
+                    <div class="print-sheet-header">
+                        <div>
+                            <div class="print-sheet-title">2026 하반기 강사1 전체 시간표</div>
+                            <div class="print-sheet-meta" style="text-align:left;margin-top:2px;">${SEMESTER_START.slice(5).replace('-', '/')} ~ ${SEMESTER_END.slice(5).replace('-', '/')} · 평일 기준</div>
+                        </div>
+                        <div class="print-sheet-meta">
+                            배정 ${formatProgressCount(totalAssigned, TOTAL_CAPACITY_HOURS)} · 필수 ${REQUIRED_TOTAL_HOURS} · ${dates.length}일<br>
+                            출력 ${new Date().toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · 저장 ${savedLabel}
+                        </div>
+                    </div>
+                    <table class="print-full-grid">
+                        <thead>
+                            <tr>
+                                <th class="print-date-col">날짜</th>
+                                ${[1, 2, 3, 4, 5, 6].map(p => `<th class="print-period-col">${p}교시</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>${bodyRows}</tbody>
+                    </table>
+                    <div class="print-class-summary">${classSummary}</div>
+                </div>
+            `;
+        }
+
+        function printFullSchedule() {
+            renderFullSchedulePrintView();
+            document.body.classList.add('is-printing-full-schedule');
+            const cleanup = () => {
+                document.body.classList.remove('is-printing-full-schedule');
+                window.removeEventListener('afterprint', cleanup);
+            };
+            window.addEventListener('afterprint', cleanup);
+            window.print();
+            setTimeout(cleanup, 1000);
         }
 
         function validateFullSchedule() {
@@ -4917,7 +5288,7 @@
                 }
                 const offPreferred = assignments.filter(a => !isGradeOnPreferredDay(cls, a.dow));
                 if (offPreferred.length > 0) {
-                    const hint = cls.grade <= 2 ? '월·금' : '화·수·목';
+                    const hint = formatGradeDayRuleLabel(cls.grade);
                     warnings.push(`${cls.label}: 권장 요일(${hint}) 외 배정 ${offPreferred.length}건`);
                 }
             });
@@ -5186,7 +5557,7 @@
         }
 
         function fillExtendedDaySlots(week, classState) {
-            if (getTotalAssignedHours() >= REQUIRED_TOTAL_HOURS) return;
+            if (getTotalAssignedHours() >= TOTAL_CAPACITY_HOURS) return;
             for (const dateKey of [...week.days].sort()) {
                 if (!isInstructorAvailable(dateKey)) continue;
                 if (getInstructorDayPeriods(dateKey).length === 0 && !isExtendedOnlyInstructorDay(dateKey)) continue;
@@ -5196,7 +5567,7 @@
                 for (const p of allowed) {
                     if (plannedTimetable[dateKey]?.[p]) continue;
                     if (getRemainingWeeklyHours(week.weekStart, week.days) <= 0) break;
-                    if (getTotalAssignedHours() >= REQUIRED_TOTAL_HOURS) break;
+                    if (getTotalAssignedHours() >= TOTAL_CAPACITY_HOURS) break;
                     if (wouldCreateLargeDayGap(dateKey, p)) continue;
                     tryFillExtendedSlot(week, dateKey, p, classState);
                 }
@@ -5204,7 +5575,7 @@
         }
 
         function fillEmptyDaySlots(week, classState) {
-            if (getTotalAssignedHours() >= REQUIRED_TOTAL_HOURS) return;
+            if (getTotalAssignedHours() >= TOTAL_CAPACITY_HOURS) return;
             for (const dateKey of [...week.days].sort()) {
                 if (!isInstructorAvailable(dateKey)) continue;
                 const dow = new Date(dateKey + 'T12:00:00').getDay();
@@ -5217,7 +5588,7 @@
                 for (const p of [...new Set(fillPeriods)].sort((a, b) => a - b)) {
                     if (plannedTimetable[dateKey]?.[p]) continue;
                     if (getRemainingWeeklyHours(week.weekStart, week.days) <= 0) break;
-                    if (getTotalAssignedHours() >= REQUIRED_TOTAL_HOURS) break;
+                    if (getTotalAssignedHours() >= TOTAL_CAPACITY_HOURS) break;
                     tryFillEmptySlot(week, dateKey, p, classState);
                 }
             }
@@ -5229,7 +5600,7 @@
             let guard = 0;
             const maxGuard = classState.length * 4;
 
-            while (getRemainingWeeklyHours(week.weekStart, week.days) > 0 && getTotalAssignedHours() < REQUIRED_TOTAL_HOURS && guard < maxGuard) {
+            while (getRemainingWeeklyHours(week.weekStart, week.days) > 0 && getTotalAssignedHours() < TOTAL_CAPACITY_HOURS && guard < maxGuard) {
                 guard++;
                 const due = getSchedulingPriorityList(classState)
                     .filter(cls => !weekClassesDone.has(cls.id) && cls.requiredDone < cls.sessions
@@ -5278,7 +5649,7 @@
 
             // 3단계: 전체 근무일 빈 교시 최종 채움
             for (const week of weeks) {
-                if (getTotalAssignedHours() >= REQUIRED_TOTAL_HOURS) break;
+                if (getTotalAssignedHours() >= TOTAL_CAPACITY_HOURS) break;
                 if (!week.days.some(d => isInstructorAvailable(d))) continue;
                 fillExtendedOnlyInstructorDaysInWeek(week, classState);
                 fillEmptyDaySlots(week, classState);
@@ -5309,6 +5680,7 @@
                 showToast(`편성 ${formatProgressCount(totalAssigned, REQUIRED_TOTAL_HOURS)} · ${incomplete.length}개 학급 미완${emptySlotErrors.length ? ` · 빈 슬롯 ${emptySlotErrors.length}건` : ''}`, 'warning');
             }
             markScheduleDirty();
+            renderGradeDayRulesSummary();
         }
 
         function clearAllSchedule() {
@@ -5603,6 +5975,12 @@
         window.refreshAllScheduleViews = refreshAllScheduleViews;
         window.showToast = showToast;
         window.runGeminiScheduleAdvice = runGeminiScheduleAdvice;
+        window.toggleGradeDayRuleDow = toggleGradeDayRuleDow;
+        window.saveGradeDayRulesFromUI = saveGradeDayRulesFromUI;
+        window.applyGradeDayRulesAndRegenerate = applyGradeDayRulesAndRegenerate;
+        window.resetGradeDayRulesToDefault = resetGradeDayRulesToDefault;
+        window.applyGradeDayRulePreset = applyGradeDayRulePreset;
+        window.printFullSchedule = printFullSchedule;
 
         window.addEventListener('beforeunload', (e) => {
             if (scheduleDirty) {

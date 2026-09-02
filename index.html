@@ -308,9 +308,10 @@
                     <i class="fa-solid fa-calendar-check"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <h1 class="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2 flex-wrap">
                         강사 1 일정 분석 & 학년 시간표 조율
                         <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">2026 하반기</span>
+                        <span id="cloudStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">연결 대기</span>
                     </h1>
                     <p class="text-xs sm:text-sm text-slate-500">20학급 · 1~2학년 · 3~6학년 · 9~12월 주당 14h</p>
                 </div>
@@ -332,6 +333,9 @@
                 </button>
                 <button onclick="switchTab('strategy')" id="tab-strategy" class="tab-btn px-4 py-2 rounded-lg transition text-slate-600 hover:text-slate-900 flex items-center gap-1.5 whitespace-nowrap">
                     <i class="fa-solid fa-lightbulb"></i> 학년별 편성 전략
+                </button>
+                <button onclick="runGeminiScheduleAdvice()" id="geminiAdviceBtn" class="hidden tab-btn px-4 py-2 rounded-lg transition text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI 조언
                 </button>
             </div>
         </div>
@@ -2553,11 +2557,15 @@
                 } else if (!silent) {
                     showToast('브라우저 로컬 저장 불가 · 「내보내기」로 JSON 파일을 저장하세요.', 'warning');
                 }
+                if (window.CloudBridge?.isCloudEnabled?.()) {
+                    window.CloudBridge.scheduleCloudSave(payload);
+                }
                 lastSavedAt = payload.savedAt;
                 scheduleDirty = false;
                 updateScheduleSaveStatus();
                 if (showSuccessToast) {
-                    showToast('편성표·강사1 일정이 저장되었습니다.', 'success');
+                    const cloudNote = window.CloudBridge?.isCloudEnabled?.() ? ' (클라우드 동기화)' : '';
+                    showToast(`편성표·강사1 일정이 저장되었습니다.${cloudNote}`, 'success');
                 }
                 return true;
             } catch (err) {
@@ -2580,7 +2588,53 @@
         }
 
         function saveSchedule() {
-            return persistScheduleData({ silent: false, showSuccessToast: true });
+            const saved = persistScheduleData({ silent: false, showSuccessToast: true });
+            if (saved && window.CloudBridge?.isCloudEnabled?.()) {
+                window.CloudBridge.saveToCloud(buildSchedulePayload(), { showSuccessToast: false });
+            }
+            return saved;
+        }
+
+        function buildGeminiScheduleContext() {
+            const totalAssigned = getTotalAssignedHours();
+            const unassigned = SCHOOL_CLASSES.map((cls) => {
+                const done = countClassSessions(cls.id);
+                return `${cls.label} ${done}/${cls.sessions}시수`;
+            }).join('\n');
+            return [
+                '2026 하반기 강사1 학급 편성표 요약',
+                `배정 시수: ${totalAssigned} / ${REQUIRED_TOTAL_HOURS}`,
+                `선택 주차: ${selectedWeekStart || '없음'}`,
+                '학급별 진행:',
+                unassigned,
+            ].join('\n');
+        }
+
+        async function runGeminiScheduleAdvice() {
+            if (!window.CloudBridge?.isGeminiAvailable?.()) {
+                showToast('Gemini API가 Vercel 환경변수에 등록되지 않았습니다.', 'warning');
+                return;
+            }
+            const btn = document.getElementById('geminiAdviceBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('opacity-60');
+            }
+            try {
+                const context = buildGeminiScheduleContext();
+                const text = await window.CloudBridge.askGemini(
+                    '현재 편성표를 검토하고, 미배정·과배정·주차별 공백·5·6학년 6교시 배치 관점에서 개선 제안 3~5가지를 한국어 bullet로 짧게 정리해 주세요.',
+                    context
+                );
+                showToast(text.slice(0, 280) + (text.length > 280 ? '…' : ''), 'info');
+            } catch (err) {
+                showToast(`AI 조언 실패: ${err.message}`, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-60');
+                }
+            }
         }
 
         function loadScheduleFromStorage() {
@@ -5531,6 +5585,10 @@
         window.exportScheduleToFile = exportScheduleToFile;
         window.triggerImportScheduleFile = triggerImportScheduleFile;
         window.importScheduleFromFile = importScheduleFromFile;
+        window.applySchedulePayload = applySchedulePayload;
+        window.refreshAllScheduleViews = refreshAllScheduleViews;
+        window.showToast = showToast;
+        window.runGeminiScheduleAdvice = runGeminiScheduleAdvice;
 
         window.addEventListener('beforeunload', (e) => {
             if (scheduleDirty) {
@@ -5539,13 +5597,31 @@
             }
         });
 
-        window.onload = function() {
+        window.onload = async function() {
+            if (window.CloudBridge) {
+                await window.CloudBridge.initCloudIntegration();
+            }
+
             calculateSummaryStats();
             renderAnalysisMonthCards();
             initPlannerView();
             renderStrategySummary();
             renderFixedTimetableSummary();
-            const loaded = loadScheduleFromStorage();
+
+            let loaded = false;
+            let loadSource = null;
+            if (window.CloudBridge?.isCloudEnabled?.()) {
+                loaded = await window.CloudBridge.loadFromCloud();
+                if (loaded) {
+                    loadSource = 'cloud';
+                    showToast('Firebase 클라우드 편성표를 불러왔습니다.', 'info');
+                }
+            }
+            if (!loaded && loadScheduleFromStorage()) {
+                loaded = true;
+                loadSource = 'local';
+            }
+
             if (!loaded) {
                 generateClassSchedule();
             } else {
@@ -5559,7 +5635,9 @@
                 const filter = document.getElementById('weekFilter');
                 if (filter && selectedWeekStart) filter.value = selectedWeekStart;
                 refreshAllScheduleViews(false);
-                showToast('저장된 편성표를 불러왔습니다.', 'info');
+                if (loadSource === 'local') {
+                    showToast('저장된 편성표를 불러왔습니다.', 'info');
+                }
                 calculateSummaryStats();
                 renderAnalysisMonthCards();
             }
@@ -5589,5 +5667,6 @@
             updateScheduleSaveStatus();
         };
     </script>
+    <script type="module" src="/js/cloud-integration.js"></script>
 </body>
 </html>

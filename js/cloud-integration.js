@@ -21,8 +21,17 @@ let cloudConfigHint = null;
 let lastCloudSaveError = null;
 let unsubscribeSnapshot = null;
 let lastAppliedRemoteSavedAt = 0;
+let lastAppliedTimetableHash = '';
 let cloudSyncStarted = false;
 let activeCloudDocRef = null;
+
+function hashPlannedTimetable(payload) {
+  try {
+    return JSON.stringify(payload?.plannedTimetable || {});
+  } catch {
+    return '';
+  }
+}
 
 function updateCloudUI(state = {}) {
   const badge = document.getElementById('cloudStatusBadge');
@@ -119,12 +128,22 @@ function shouldApplyRemotePayload(payload, options = {}) {
   const { force = false } = options;
   if (!payload || typeof payload.plannedTimetable !== 'object') return false;
   if (force) return true;
+
   const remoteMs = getPayloadSavedAtMs(payload);
-  if (!remoteMs) return true;
+  if (!remoteMs) return false;
+
+  const remoteHash = hashPlannedTimetable(payload);
+  if (remoteHash && remoteHash === lastAppliedTimetableHash && remoteMs <= lastAppliedRemoteSavedAt) {
+    return false;
+  }
+
   if (remoteMs <= lastAppliedRemoteSavedAt) return false;
   if (hasUnsavedLocalChanges()) return false;
+
   const localMs = getLocalSavedAtMs();
-  return remoteMs >= localMs;
+  if (localMs && remoteMs <= localMs) return false;
+
+  return true;
 }
 
 function cachePayloadLocally(payload) {
@@ -145,7 +164,9 @@ function applyRemotePayload(payload, options = {}) {
     if (!applied) return false;
 
     const remoteMs = getPayloadSavedAtMs(payload);
+    const remoteHash = hashPlannedTimetable(payload);
     lastAppliedRemoteSavedAt = Math.max(lastAppliedRemoteSavedAt, remoteMs);
+    if (remoteHash) lastAppliedTimetableHash = remoteHash;
     cachePayloadLocally(payload);
 
     if (typeof window.refreshAllScheduleViews === 'function') {
@@ -191,12 +212,11 @@ async function resolveCloudDocRef() {
 async function verifyCloudWriteAccess() {
   try {
     await ensureAuthenticated();
-    const ref = getPrimaryCloudDocRef();
-    await setDoc(ref, {
-      _writeProbe: true,
-      savedAt: new Date().toISOString(),
+    const probeRef = doc(db, 'schedules', '_write_probe');
+    await setDoc(probeRef, {
+      probedAt: new Date().toISOString(),
     }, { merge: true });
-    activeCloudDocRef = ref;
+    activeCloudDocRef = getPrimaryCloudDocRef();
     isCloudWriteVerified = true;
     cloudConfigHint = null;
     return true;
@@ -303,7 +323,10 @@ export async function saveToCloud(payload, options = {}) {
     await setDoc(ref, data, { merge: false });
     pendingCloudPayload = null;
     lastCloudSaveError = null;
-    lastAppliedRemoteSavedAt = Math.max(lastAppliedRemoteSavedAt, getPayloadSavedAtMs(data));
+    const savedMs = getPayloadSavedAtMs(data);
+    lastAppliedRemoteSavedAt = Math.max(lastAppliedRemoteSavedAt, savedMs);
+    const savedHash = hashPlannedTimetable(data);
+    if (savedHash) lastAppliedTimetableHash = savedHash;
     cachePayloadLocally(data);
     isCloudWriteVerified = true;
     if (showSuccessToast && typeof window.showToast === 'function') {

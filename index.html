@@ -681,7 +681,7 @@
             </div>
         </section>
 
-        <!-- TAB 3: 학급 편성표 (20학급 자동 배정) -->
+        <!-- TAB 3: 학급 편성표 (20학급 수동 배정) -->
         <section id="view-classes" class="hidden space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -712,13 +712,10 @@
                         <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
                             <i class="fa-solid fa-users-rectangle text-indigo-600"></i> 학급 구성 및 배정 계획
                         </h2>
-                        <p class="text-xs text-slate-500 mt-1">학년별 배정 한도 준수 · 근무일 교시 전부 배치 · <strong>자동 편성</strong> 후 표에서 <strong>자율 배정</strong> 조정</p>
+                        <p class="text-xs text-slate-500 mt-1">주차별 표에서 <strong>칸 클릭·드래그</strong>로 학급을 수동 배정합니다</p>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="generateClassSchedule()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center gap-2">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i> 자동 편성 생성
-                        </button>
-                        <button onclick="clearAllSchedule()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition flex items-center gap-2">
+                        <button type="button" onclick="clearAllSchedule()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition flex items-center gap-2">
                             <i class="fa-solid fa-rotate-left"></i> 전체 초기화
                         </button>
                     </div>
@@ -823,14 +820,14 @@
                     </summary>
                     <div class="px-4 pb-4 space-y-4 border-t border-teal-100 bg-white/60">
                         <p class="text-xs text-teal-800 pt-3 leading-relaxed">
-                            학년마다 <strong>집중 배치 요일</strong>과 <strong>집중 운영 기간</strong>(시작~종료일)을 지정하면, 해당 기간 동안 자동 편성·빈 칸 채움 시 우선 적용됩니다.
+                            학년마다 <strong>집중 배치 요일</strong>과 <strong>집중 운영 기간</strong>(시작~종료일)을 지정하면, 수동 배정 시 참고·검증에 활용됩니다.
                             기간을 비우면 <strong>학기 전체</strong>에 적용됩니다. 예: 1학년 → 월·수, 9/18~10/31
                         </p>
                         <div id="gradeDayRulesEditor" class="space-y-2"></div>
                         <div class="flex flex-wrap items-center gap-3 text-xs">
                             <label class="inline-flex items-center gap-2 font-semibold text-slate-700 cursor-pointer">
                                 <input type="checkbox" id="gradeDayRuleStrict" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                                엄격 모드 (지정 요일만 자동 배치)
+                                엄격 모드 (지정 요일 외 배정 시 경고)
                             </label>
                             <span class="text-slate-400">|</span>
                             <span class="text-slate-500">빠른 설정:</span>
@@ -843,7 +840,7 @@
                                 <i class="fa-solid fa-floppy-disk mr-1"></i> 규칙 저장
                             </button>
                             <button type="button" onclick="applyGradeDayRulesAndRegenerate()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition shadow-sm">
-                                <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> 규칙 적용 · 자동 재편성
+                                <i class="fa-solid fa-floppy-disk mr-1"></i> 규칙 저장
                             </button>
                             <button type="button" onclick="resetGradeDayRulesToDefault()" class="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-sm border border-slate-200 transition">
                                 기본값 복원
@@ -1218,6 +1215,9 @@
             { dateKey: '2026-11-30', period: 4, classId: '6-4' }
         ];
 
+        /** 수동 배정 전용 — 자동 편성·로드 시 슬롯 채움 비활성 */
+        const MANUAL_SCHEDULE_ONLY = true;
+
         /** 비워 둘 슬롯 (자동편성 시 삭제·재배정 제외, 수동 편성은 허용) */
         const CLEARED_SLOTS = [
             { dateKey: '2026-10-26', periods: [1, 4] }
@@ -1265,14 +1265,15 @@
             return getManualGridSlotHint(dow, period) || '';
         }
 
-        function applyClearedSlots() {
+        function applyClearedSlots(options = {}) {
+            const { markDirty = true } = options;
             let changed = false;
             CLEARED_SLOTS.forEach(({ dateKey, periods }) => {
                 periods.forEach(period => {
                     if (removeAssignmentAt(dateKey, period)) changed = true;
                 });
             });
-            if (changed) markScheduleDirty();
+            if (changed && markDirty) markScheduleDirty();
             return changed;
         }
 
@@ -1286,36 +1287,10 @@
             if (!hasScheduleMigration(id)) appliedScheduleMigrations.push(id);
         }
 
-        /** 저장된 편성표 로드 시 1회만 실행 — 매 로드마다 고정·비움 슬롯을 덮어쓰지 않음 */
+        /** 로드 시 편성표 내용 변경 없음 — 마이그레이션 ID만 기록 */
         function ensureScheduleMigrationsOnLoad() {
-            let changed = false;
-            const legacy = appliedScheduleMigrations.length === 0;
-
-            if (!hasScheduleMigration('oct29-swap')) {
-                if (migrateOctober29Swap()) changed = true;
-                markScheduleMigration('oct29-swap');
-            }
-            if (!hasScheduleMigration('dec4-nov30')) {
-                if (migrateDec4SixGradeToNov30()) changed = true;
-                markScheduleMigration('dec4-nov30');
-            }
-
-            if (legacy) {
-                markScheduleMigration('initial-fixed-assignments');
-                markScheduleMigration('cleared-1026');
-            } else {
-                if (!hasScheduleMigration('initial-fixed-assignments')) {
-                    if (applyFixedAssignments({ onlyIfEmpty: false })) changed = true;
-                    markScheduleMigration('initial-fixed-assignments');
-                }
-                if (!hasScheduleMigration('cleared-1026')) {
-                    if (applyClearedSlots()) changed = true;
-                    markScheduleMigration('cleared-1026');
-                }
-            }
-
-            if (applyInvalidSchoolTimetableSlotCleanup()) changed = true;
-            return changed || legacy;
+            SCHEDULE_ONE_TIME_MIGRATION_IDS.forEach(id => markScheduleMigration(id));
+            return false;
         }
 
         function isFixedAssignment(dateKey, period, classId) {
@@ -2064,9 +2039,9 @@
                     return;
                 }
             }
-            persistScheduleData({ silent: true, showSuccessToast: false });
-            generateClassSchedule();
+            persistScheduleData({ silent: false, showSuccessToast: true });
             renderGradeDayRulesSummary();
+            showToast('학년별 요일·집중 운영 규칙을 저장했습니다. 편성표는 표에서 수동으로 배정하세요.', 'success');
         }
 
         function resetGradeDayRulesToDefault() {
@@ -2091,7 +2066,7 @@
             }
             renderGradeDayRulesPanel();
             markScheduleDirty();
-            showToast('프리셋을 적용했습니다. 「규칙 적용 · 자동 재편성」으로 편성표에 반영하세요.', 'info');
+            showToast('프리셋을 적용했습니다. 「규칙 저장」으로 저장하세요.', 'info');
         }
 
         /** 월요일 1교시: 자동편성에서만 제외 (수동 배치는 허용) */
@@ -5805,14 +5780,14 @@
         }
 
         function applyFixedAssignments(options = {}) {
-            const { onlyIfEmpty = false } = options;
+            const { onlyIfEmpty = false, markDirty = true } = options;
             let changed = false;
             FIXED_ASSIGNMENTS.forEach(({ dateKey, period, classId }) => {
                 const existing = plannedTimetable[dateKey]?.[period];
                 if (onlyIfEmpty && existing) return;
                 if (assignFixedSlotDirect(dateKey, period, classId)) changed = true;
             });
-            if (changed) markScheduleDirty();
+            if (changed && markDirty) markScheduleDirty();
             return changed;
         }
 
@@ -5957,6 +5932,10 @@
         }
 
         function generateClassSchedule() {
+            if (MANUAL_SCHEDULE_ONLY) {
+                showToast('자동 편성은 사용하지 않습니다. 주차별 표에서 칸을 클릭해 수동으로 배정하세요.', 'info');
+                return;
+            }
             plannedTimetable = {};
             classPreferredSlot = {};
             closeScheduleCellPicker();
@@ -6368,24 +6347,24 @@
                 if (loaded) {
                     showToast('공유 편성표를 불러왔습니다.', 'info');
                 }
-                window.CloudBridge.startCloudSync();
             } else {
                 showToast('Firebase 공유 저장만 사용합니다. Vercel 배포 URL과 FIREBASE_CONFIG 설정을 확인하세요.', 'error');
             }
 
             if (!loaded) {
                 if (useSharedCloud) {
-                    showToast('공유 편성표가 없습니다. JSON 「불러오기」 또는 자동 편성 후 자동 저장됩니다.', 'info');
+                    showToast('공유 편성표가 없습니다. JSON 「불러오기」 후 표에서 수동으로 배정하세요.', 'info');
                     appliedScheduleMigrations = [...SCHEDULE_ONE_TIME_MIGRATION_IDS];
                 }
             } else {
-                const migrationChanged = ensureScheduleMigrationsOnLoad();
+                ensureScheduleMigrationsOnLoad();
                 reconcileAllClassSessionNumbers();
                 calculateSummaryStats();
                 renderAnalysisMonthCards();
-                if (migrationChanged) {
-                    await persistScheduleData({ silent: true, showSuccessToast: false, forceCloud: true });
-                }
+            }
+
+            if (useSharedCloud) {
+                window.CloudBridge.startCloudSync();
             }
             if (!selectedWeekStart) selectedWeekStart = getWeekKey('2026-11-05');
             initWeekFilter();
@@ -6393,21 +6372,6 @@
             if (weekFilter) weekFilter.value = selectedWeekStart;
             refreshAllScheduleViews(false);
             updateCloudSyncBanner();
-            const nov5 = plannedTimetable['2026-11-05'];
-            const nov30 = plannedTimetable['2026-11-30'];
-            const nov24 = plannedTimetable['2026-11-24'];
-            const nov26 = plannedTimetable['2026-11-26'];
-            if (nov30?.[3]?.classId === '6-3' && nov30?.[4]?.classId === '6-4') {
-                showToast('11.30(월) 3교시 6-3 · 4교시 6-4 배정 완료 (12.4 이동)', 'success');
-            } else if (nov24?.[6]?.classId === '6-2' && nov26?.[6]?.classId === '6-3') {
-                showToast('11.24(화) 6교시 6-2 · 11.26(목) 6교시 6-3 배정 완료', 'success');
-            } else if (nov5?.[1]?.classId === '6-4' && nov5?.[4]?.classId === '6-3') {
-                showToast('11.5(목) 1교시 6-4 · 4교시 6-3 배정 완료', 'success');
-            } else if (plannedTimetable['2026-10-29']?.[1]?.classId === '6-4' && plannedTimetable['2026-10-29']?.[4]?.classId === '6-3') {
-                showToast('10.29(목) 1교시 6-4 · 4교시 6-3 배정 완료', 'success');
-            } else if (plannedTimetable['2026-10-19']?.[6]?.classId === '6-3') {
-                showToast('10.19(월) 6교시 · 6학년 3반 배정 완료', 'success');
-            }
             switchTab('classes');
             initWeeklyGridInteractions();
             updateScheduleSaveStatus();

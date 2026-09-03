@@ -456,6 +456,10 @@
                         <p class="text-xs text-slate-500">2026년 9월 ~ 12월 평일 강사1 출강 가능일 · <strong class="text-indigo-600">날짜 클릭하여 수정</strong></p>
                     </div>
                     <div class="flex items-center gap-2 flex-wrap">
+                        <button type="button" onclick="toggleInstructorAddDayPanel()"
+                            class="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 px-3 py-1.5 rounded-lg">
+                            <i class="fa-solid fa-plus mr-1"></i> 일정 추가
+                        </button>
                         <button type="button" onclick="resetAllInstructorSchedules()"
                             class="text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-3 py-1.5 rounded-lg">
                             <i class="fa-solid fa-rotate-left mr-1"></i> 일정 초기화
@@ -468,6 +472,27 @@
                             <option value="12">2026년 12월</option>
                         </select>
                     </div>
+                </div>
+
+                <div id="instructorAddDayPanel" class="hidden rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
+                    <div class="flex flex-col sm:flex-row sm:items-end gap-3">
+                        <div class="flex-1">
+                            <label for="instructorAddDateInput" class="block text-xs font-semibold text-indigo-900 mb-1.5">추가할 날짜 (2026년 9~12월 · 평일)</label>
+                            <input type="date" id="instructorAddDateInput" min="2026-09-01" max="2026-12-31"
+                                class="w-full sm:max-w-xs px-3 py-2.5 bg-white border border-indigo-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="addInstructorScheduleDay()"
+                                class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-sm transition shadow-sm">
+                                <i class="fa-solid fa-plus mr-1"></i> 추가
+                            </button>
+                            <button type="button" onclick="toggleInstructorAddDayPanel()"
+                                class="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-600 font-semibold rounded-lg text-sm border border-slate-200 transition">
+                                닫기
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-indigo-800">기본 일정에 없는 평일도 추가할 수 있습니다. 추가 후 출강 상태·메모를 입력하고 저장하세요.</p>
                 </div>
 
                 <div id="monthCardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -525,6 +550,11 @@
                         <button type="button" onclick="resetInstructorDayToBase()"
                             class="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-lg text-sm border border-slate-200 transition">
                             <i class="fa-solid fa-rotate-left mr-1"></i> 기본값 복원
+                        </button>
+                        <button type="button" onclick="deleteInstructorScheduleDay()"
+                            id="deleteInstructorDayBtn"
+                            class="hidden px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-semibold rounded-lg text-sm border border-rose-200 transition">
+                            <i class="fa-solid fa-trash-can mr-1"></i> 이 날짜 삭제
                         </button>
                         <button type="button" onclick="openInstructorDayInPlanner()"
                             class="px-4 py-2.5 bg-white hover:bg-indigo-50 text-indigo-700 font-semibold rounded-lg text-sm border border-indigo-200 transition">
@@ -1175,6 +1205,16 @@
             "2026-12-31": { status: "available", memo: "" }
         };
 
+        const INSTRUCTOR_SCHEDULE_RANGE_START = '2026-09-01';
+        const INSTRUCTOR_SCHEDULE_RANGE_END = '2026-12-31';
+        /** schoolCalendarBase 변경 시 revision 올리고 INSTRUCTOR_CALENDAR_PATCHES에 반영 */
+        const INSTRUCTOR_CALENDAR_REVISION = 2;
+        const INSTRUCTOR_CALENDAR_PATCHES = {
+            2: {
+                '2026-10-05': { status: 'holiday', holiday: '대체공휴일', memo: '수업 불가' }
+            }
+        };
+
         // ===== 학급 구성 및 편성 규칙 =====
         const MAX_WEEKLY_HOURS_DEFAULT = 14;
         const MAX_WEEKLY_HOURS_NOV = 14;
@@ -1301,6 +1341,7 @@
         }
 
         let instructor1Schedules = JSON.parse(JSON.stringify(schoolCalendarBase));
+        let instructorCalendarRevision = INSTRUCTOR_CALENDAR_REVISION;
 
         const GRADE56_DEFAULT_SESSIONS = 13;
 
@@ -3018,6 +3059,7 @@
                 gradeDayPlacementRules: getLegacyGradeDayPlacementRules(),
                 gradeDayRuleStrict,
                 instructor1Schedules: JSON.parse(JSON.stringify(instructor1Schedules)),
+                instructorCalendarRevision,
                 selectedWeekStart,
                 appliedScheduleMigrations: [...appliedScheduleMigrations],
                 savedAt: new Date().toISOString()
@@ -3041,6 +3083,9 @@
             } else {
                 instructor1Schedules = JSON.parse(JSON.stringify(schoolCalendarBase));
             }
+            instructorCalendarRevision = Number(data.instructorCalendarRevision) || 0;
+            mergeMissingInstructorBaseDates();
+            applyInstructorCalendarUpdates();
             if (data.selectedWeekStart) selectedWeekStart = data.selectedWeekStart;
             appliedScheduleMigrations = Array.isArray(data.appliedScheduleMigrations)
                 ? [...data.appliedScheduleMigrations]
@@ -6044,6 +6089,91 @@
             document.getElementById('toast').classList.add('hidden');
         }
 
+        function isInstructorScheduleRange(dateKey) {
+            return dateKey >= INSTRUCTOR_SCHEDULE_RANGE_START && dateKey <= INSTRUCTOR_SCHEDULE_RANGE_END;
+        }
+
+        function isInstructorScheduleWeekday(dateKey) {
+            const dow = new Date(dateKey + 'T12:00:00').getDay();
+            return dow >= 1 && dow <= 5;
+        }
+
+        function mergeMissingInstructorBaseDates() {
+            Object.entries(schoolCalendarBase).forEach(([dateKey, entry]) => {
+                if (!instructor1Schedules[dateKey]) {
+                    instructor1Schedules[dateKey] = JSON.parse(JSON.stringify(entry));
+                }
+            });
+        }
+
+        /** Firebase 등 저장본에 반영되지 않은 기본 일정 패치 (예: 10.5 대체공휴일) */
+        function applyInstructorCalendarUpdates() {
+            let changed = false;
+            for (let rev = 1; rev <= INSTRUCTOR_CALENDAR_REVISION; rev++) {
+                const patch = INSTRUCTOR_CALENDAR_PATCHES[rev];
+                if (!patch) continue;
+                Object.entries(patch).forEach(([dateKey, entry]) => {
+                    const next = JSON.parse(JSON.stringify(entry));
+                    if (JSON.stringify(instructor1Schedules[dateKey]) !== JSON.stringify(next)) {
+                        instructor1Schedules[dateKey] = next;
+                        changed = true;
+                    }
+                });
+            }
+            if (instructorCalendarRevision !== INSTRUCTOR_CALENDAR_REVISION) {
+                instructorCalendarRevision = INSTRUCTOR_CALENDAR_REVISION;
+                changed = true;
+            }
+            return changed;
+        }
+
+        function toggleInstructorAddDayPanel() {
+            const panel = document.getElementById('instructorAddDayPanel');
+            if (!panel) return;
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                document.getElementById('instructorAddDateInput')?.focus();
+            }
+        }
+
+        function addInstructorScheduleDay() {
+            const dateKey = document.getElementById('instructorAddDateInput')?.value;
+            if (!dateKey) {
+                showToast('날짜를 선택해 주세요.', 'warning');
+                return;
+            }
+            if (!isInstructorScheduleRange(dateKey)) {
+                showToast('2026년 9월~12월 날짜만 추가할 수 있습니다.', 'warning');
+                return;
+            }
+            if (!isInstructorScheduleWeekday(dateKey)) {
+                showToast('평일(월~금)만 추가할 수 있습니다.', 'warning');
+                return;
+            }
+            if (instructor1Schedules[dateKey]) {
+                showToast('이미 등록된 날짜입니다. 수정 화면을 엽니다.', 'info');
+                openInstructorDayEdit(dateKey);
+                return;
+            }
+            instructor1Schedules[dateKey] = { status: 'available', memo: '' };
+            markScheduleDirty();
+            calculateSummaryStats();
+            renderAnalysisMonthCards();
+            toggleInstructorAddDayPanel();
+            openInstructorDayEdit(dateKey);
+            showToast(`${dateKey} 일정을 추가했습니다.`, 'success');
+        }
+
+        function updateInstructorDayDeleteButton() {
+            const btn = document.getElementById('deleteInstructorDayBtn');
+            if (!btn || !instructorEditDateKey) {
+                btn?.classList.add('hidden');
+                return;
+            }
+            const isCustom = !schoolCalendarBase[instructorEditDateKey];
+            btn.classList.toggle('hidden', !isCustom);
+        }
+
         function calculateSummaryStats() {
             let fullPossible = 0;
             let partialPossible = 0;
@@ -6096,7 +6226,11 @@
                 const dateKeys = Object.keys(instructor1Schedules).filter(k => {
                     const monthPart = k.split('-')[1];
                     return parseInt(monthPart, 10) === parseInt(m.key, 10);
-                });
+                }).sort();
+
+                if (dateKeys.length === 0) {
+                    monthHtml += `<p class="text-slate-400 text-center py-4">등록된 일정 없음 · 「일정 추가」로 입력</p>`;
+                }
 
                 dateKeys.forEach(dateKey => {
                     const item = instructor1Schedules[dateKey];
@@ -6167,8 +6301,12 @@
         }
 
         function openInstructorDayEdit(dateKey) {
-            const item = instructor1Schedules[dateKey];
-            if (!item) return;
+            let item = instructor1Schedules[dateKey];
+            if (!item) {
+                if (!isInstructorScheduleRange(dateKey) || !isInstructorScheduleWeekday(dateKey)) return;
+                item = { status: 'available', memo: '' };
+                instructor1Schedules[dateKey] = item;
+            }
 
             instructorEditDateKey = dateKey;
             const dow = new Date(dateKey + 'T12:00:00').getDay();
@@ -6188,6 +6326,7 @@
 
             document.getElementById('instructorDayEditPanel')?.classList.remove('hidden');
             highlightInstructorDayRow(dateKey);
+            updateInstructorDayDeleteButton();
             document.getElementById('instructorDayEditPanel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
@@ -6236,6 +6375,24 @@
             showToast(`${instructorEditDateKey} 강사1 일정 저장`, 'success');
         }
 
+        function deleteInstructorScheduleDay() {
+            if (!instructorEditDateKey) return;
+            if (schoolCalendarBase[instructorEditDateKey]) {
+                showToast('기본 일정은 삭제할 수 없습니다. 「기본값 복원」을 이용하세요.', 'warning');
+                return;
+            }
+            if (!confirm(`${instructorEditDateKey} 일정을 삭제할까요?`)) return;
+            delete instructor1Schedules[instructorEditDateKey];
+            closeInstructorDayEdit();
+            markScheduleDirty();
+            calculateSummaryStats();
+            renderAnalysisMonthCards();
+            renderWeeklySchedule();
+            refreshPlannerViews();
+            validateFullSchedule();
+            showToast('일정을 삭제했습니다.', 'info');
+        }
+
         function resetInstructorDayToBase() {
             if (!instructorEditDateKey || !schoolCalendarBase[instructorEditDateKey]) {
                 showToast('복원할 기본 데이터가 없습니다.', 'error');
@@ -6254,6 +6411,7 @@
         function resetAllInstructorSchedules() {
             if (!confirm('강사1 월별 일정을 모두 초기 데이터로 되돌릴까요?')) return;
             instructor1Schedules = JSON.parse(JSON.stringify(schoolCalendarBase));
+            instructorCalendarRevision = INSTRUCTOR_CALENDAR_REVISION;
             closeInstructorDayEdit();
             markScheduleDirty();
             calculateSummaryStats();
@@ -6358,9 +6516,14 @@
                 }
             } else {
                 ensureScheduleMigrationsOnLoad();
+                mergeMissingInstructorBaseDates();
+                const instructorUpdated = applyInstructorCalendarUpdates();
                 reconcileAllClassSessionNumbers();
                 calculateSummaryStats();
                 renderAnalysisMonthCards();
+                if (instructorUpdated) {
+                    await persistScheduleData({ silent: true, showSuccessToast: false, forceCloud: true });
+                }
             }
 
             if (useSharedCloud) {
